@@ -10,6 +10,63 @@ var VT = String.fromCharCode(0x0b);
 var FS = String.fromCharCode(0x1c);
 var CR = String.fromCharCode(0x0d);
 
+var mllpSendMessage = function (receivingHost, receivingPort, hl7Data, callback, logger) {
+    // Render Message if it is an object:
+    logger = logger || console.log;
+    if (typeof hl7Data ==="object" && (typeof hl7Data.render)==="function") {
+        hl7Data = hl7Data.render();
+    } else if (typeof hl7Data ==="object" ) {
+        hl7Data = hl7.serializeJSON(hl7Data);
+    }
+
+    // Continue with Sending:
+    var sendingClient = new net.connect({
+        host: receivingHost,
+        port: receivingPort
+    }, function () {
+        logger('Sending data to ' + receivingHost + ':' + receivingPort);
+        sendingClient.write(VT + hl7Data + FS + CR);
+    });
+
+    var _terminate = function () {
+        logger('closing connection with ' + receivingHost + ':' + receivingPort);
+        sendingClient.end();
+    };
+
+    sendingClient.on('data', function (rawAckData) {
+        logger(receivingHost + ':' + receivingPort + ' ACKED data');
+
+        var ackData = rawAckData
+            .toString() // Buffer -> String
+            .replace(VT, '')
+            .split('\r')[1] // Ack data
+            .replace(FS, '')
+            .replace(CR, '');
+
+        callback(null, ackData);
+        _terminate();
+    });
+
+    sendingClient.on('error', function (error) {
+        logger(receivingHost + ':' + receivingPort + ' couldn\'t process data');
+
+        callback(error, null);
+        _terminate();
+    });
+};
+
+var mllpCreateResponse = function(data) {
+    var header = [data[0]];
+
+    //switch around sender/receiver names
+    header[0][3] = data[0][5];
+    header[0][4] = data[0][6];
+    header[0][5] = data[0][3];
+    header[0][6] = data[0][4];
+
+    return hl7.serializeJSON(header);
+};
+
 /**
  * @constructor MLLPServer
  * @param {string} host a resolvable hostname or IP Address
@@ -44,17 +101,7 @@ function MLLPServer(host, port, logger, timeout) {
     var TIMEOUTS = {};
     var OPENSOCKS = {};
 
-    self.createResponseHeader = function(data) {
-        var header = [data[0]];
-
-        //switch around sender/receiver names
-        header[0][3] = data[0][5];
-        header[0][4] = data[0][6];
-        header[0][5] = data[0][3];
-        header[0][6] = data[0][4];
-
-        return hl7.serializeJSON(header);
-    };
+    self.createResponseHeader = mllpCreateResponse;
 
     self.createResponse = function(data, ack_type, error_msg) {
         //get message ID
@@ -204,47 +251,7 @@ function MLLPServer(host, port, logger, timeout) {
     };
 
     self.send = function (receivingHost, receivingPort, hl7Data, callback) {
-        // Render Message if it is an object:
-        if (typeof hl7Data ==="object" && (typeof hl7Data.render)==="function") {
-            hl7Data = hl7Data.render();
-        } else if (typeof hl7Data ==="object" ) {
-            hl7Data = hl7.serializeJSON(hl7Data);
-        }
-
-        // Continue with Sending:
-        var sendingClient = new net.connect({
-            host: receivingHost,
-            port: receivingPort
-        }, function () {
-            logger('Sending data to ' + receivingHost + ':' + receivingPort);
-            sendingClient.write(VT + hl7Data + FS + CR);
-        });
-
-        var _terminate = function () {
-            logger('closing connection with ' + receivingHost + ':' + receivingPort);
-            sendingClient.end();
-        };
-
-        sendingClient.on('data', function (rawAckData) {
-            logger(receivingHost + ':' + receivingPort + ' ACKED data');
-
-            var ackData = rawAckData
-                .toString() // Buffer -> String
-                .replace(VT, '')
-                .split('\r')[1] // Ack data
-                .replace(FS, '')
-                .replace(CR, '');
-
-            callback(null, ackData);
-            _terminate();
-        });
-
-        sendingClient.on('error', function (error) {
-            logger(receivingHost + ':' + receivingPort + ' couldn\'t process data');
-
-            callback(error, null);
-            _terminate();
-        });
+        mllpSendMessage(receivingHost, receivingPort, hl7Data, callback);
     };
 
     self.close = function(done) {
@@ -255,5 +262,9 @@ function MLLPServer(host, port, logger, timeout) {
 }
 
 util.inherits(MLLPServer, EventEmitter);
+
+// Set static Methods - no need to listen if you only want to send a Message:
+MLLPServer.send = mllpSendMessage;
+MLLPServer.createResponseHeader = mllpCreateResponse;
 
 exports.MLLPServer = MLLPServer;

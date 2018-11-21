@@ -105,7 +105,7 @@ describe("sends a large message for data exchange", function () {
 
         it("receives a HL7 Message", function () {
             server.on('hl7', function (data) {
-                assert.equal(hl7Message, data);
+                assert.equal(hl7Message, data.msg);
             });
         });
     });
