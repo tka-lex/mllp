@@ -257,8 +257,24 @@ function MLLPServer(host, port, logger, timeout) {
     self.close = function(done) {
       Server.close(done);
     };
+    if (HOST !== '0.0.0.0') {
+        Server.listen(PORT, HOST, function (err) {
+            if (err) {
+                logger("ERROR Listen to " + HOST + ":" + PORT, err);
+            } else {
+                logger("Listen now to " + HOST + ":" + PORT);
+            }
+        });
+    } else {
+        Server.listen(PORT,  function (err) {
+            if (err) {
+                logger("ERROR Listen to [any]:" + PORT, err);
+            } else {
+                logger("Listen now to [any]:" + PORT);
+            }
+        });
+    }
 
-    Server.listen(PORT, HOST);
 }
 
 util.inherits(MLLPServer, EventEmitter);
