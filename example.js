@@ -4,7 +4,7 @@ var server = new mllp.MLLPServer('127.0.0.1', 1234, console.log, timeout);
 
 // Subscribe to inbound messages
 server.on('hl7', function (eventData){
-    console.log('received payload: ', eventData.msg);
+    console.debug('received payload: ', eventData.msg);
 
     /*
      * You can send a Response back to the Server by using server.response(eventData).
@@ -26,14 +26,14 @@ server.on('hl7', function (eventData){
      * - String containing the full response
      */
 
-    if (false) {
+    /*if (false) {
         // Direct Answer:
         eventData.ack = "AR"; // Reject the Message in this example
 
         server.response(eventData);
         // server.sendResponse(eventData.id, "AA"); // alternatively
         // or skip both to let the timeout handle this for you.
-    } else {
+    } else {*/
         // you can  also send the incoming message to another Server and use the Response
         eventData.ack = "AE"; // set defaul to an Error
         server.send('127.0.0.1', 22222, eventData.hl7, function (err, ackData) {
@@ -42,7 +42,7 @@ server.on('hl7', function (eventData){
             eventData.ack = server.createResponseHeader(eventData.hl7) + "\r" + ackData;
             server.response(eventData);
         });
-    }
+    // }
 });
 
 // Send outbound messages
