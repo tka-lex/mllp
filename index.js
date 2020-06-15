@@ -2,20 +2,21 @@ var net = require('net');
 var hl7 = require('hl7');
 var util = require('util');
 var EventEmitter = require('events').EventEmitter;
+var decoder = require('./decoder.js');
 
 //The header is a vertical tab character <VT> its hex value is 0x0b.
 //The trailer is a field separator character <FS> (hex 0x1c) immediately followed by a carriage return <CR> (hex 0x0d)
 
-var VT = String.fromCharCode(0x0b);
-var FS = String.fromCharCode(0x1c);
-var CR = String.fromCharCode(0x0d);
+var VT = String.fromCharCode(0x0b); var VTi = 0x0b;
+var FS = String.fromCharCode(0x1c); var FSi = 0x1c;
+var CR = String.fromCharCode(0x0d); var CRi = 0x0d;
 
 var mllpSendMessage = function (receivingHost, receivingPort, hl7Data, callback, logger) {
     // Render Message if it is an object:
     logger = logger || console.log;
     if (typeof hl7Data ==="object" && (typeof hl7Data.render)==="function") {
         hl7Data = hl7Data.render();
-    } else if (typeof hl7Data ==="object" ) {
+    } else if (typeof hl7Data ==="object" && !hl7Data instanceof Buffer) {
         hl7Data = hl7.serializeJSON(hl7Data);
     }
 
@@ -25,7 +26,11 @@ var mllpSendMessage = function (receivingHost, receivingPort, hl7Data, callback,
         port: receivingPort
     }, function () {
         logger('Sending data to ' + receivingHost + ':' + receivingPort);
-        sendingClient.write(VT + hl7Data + FS + CR);
+        sendingClient.write(VT, function () {
+            sendingClient.write(hl7Data, function () {
+                sendingClient.write(FS + CR);
+            });
+        });
     });
 
     var _terminate = function () {
@@ -93,7 +98,7 @@ var mllpCreateResponse = function(data) {
 function MLLPServer(host, port, logger, timeout) {
 
     var self = this;
-    this.message = '';
+    this.message = Buffer.from('', 'binary');
     var HOST = host || '127.0.0.1';
     var PORT = port || 6969;
     var TIMEOUT = timeout || 600;
@@ -176,53 +181,69 @@ function MLLPServer(host, port, logger, timeout) {
             logger('server disconnected', HOST, PORT);
         });
 
+        var handleIncomingMessage = function(messageBuffer) {
+            var messageString = messageBuffer.toString();
+            var data2 = hl7.parseString(messageString);
+            var msg_id = data2[0][10];
+            var encoding = data2[0][18] + "";
+            if (encoding !== undefined && encoding !== null && encoding !== 'UNICODE UTF-8') {
+                // Decoding needed:
+                messageString = decoder(messageBuffer, encoding);
+                data2 = hl7.parseString(messageString);
+                msg_id = data2[0][10];
+            }
+            logger("Message:\r\n" + messageString + "\r\n\r\n");
+
+            var event = {
+                "msg" : messageString,
+                "id" : msg_id,
+                "ack" : "AA",
+                "hl7" : data2,
+                "buffer": messageBuffer
+            };
+
+            if (OPENSOCKS[msg_id]===undefined) {
+                // Using a Timeout if no response has been sended within the timeout.
+                TIMEOUTS[msg_id] = setTimeout(function () {
+                    handleAck(event);
+                }, TIMEOUT);
+
+                OPENSOCKS[msg_id] = {sock: sock, org: self.message}; // save socket and Message for Response
+
+                /**
+                 * MLLP HL7 Event. Fired when a HL7 Message is received.
+                 * @event MLLPServer#hl7
+                 * @type {string}
+                 * @property {object} Event with the message string (msg), the Msg-ID, the default ACK and the parsed HL7 Object
+                 */
+                self.emit('hl7', event);
+            } else {
+                // The Message ID is currently already in Progress... send a direkt REJECT-Message
+                var ack = self.createResponse(event.hl7, "AR", "Message already in progress");
+                sock.write(VT + ack + FS + CR);
+            }
+        };
+
         /*
          * handling incoming Data. Currently only one message per Connection is supported.
          */
         sock.on('data', function (data) {
-            data = data.toString();
-            //strip separators
-            logger("DATA:\nfrom " + sock.remoteAddress + ':\n' + data.split("\r").join("\n"));
+            self.message = Buffer.concat([self.message, data]);
 
-            if (data.indexOf(VT) > -1) {
-                self.message = '';
+            while (self.message.indexOf(FS + CR) > -1) {
+                var subBuffer = self.message.slice(0, self.message.indexOf(FS + CR));
+                self.message = self.message.slice(self.message.indexOf(FS + CR)+2);
+                if (subBuffer.indexOf(VTi) > -1) {
+                    subBuffer = subBuffer.slice(subBuffer.indexOf(VTi)+1);
+                }
+                handleIncomingMessage(subBuffer);
             }
 
-            self.message += data.replace(VT, '');
-
-            if (data.indexOf(FS + CR) > -1) {
-                self.message = self.message.replace(FS + CR, '');
-                var data2 = hl7.parseString(self.message);
-                var msg_id = data2[0][10];
-                logger("Message:\r\n" + self.message + "\r\n\r\n");
-
-                var event = {
-                    "msg" : self.message,
-                    "id" : msg_id,
-                    "ack" : "AA",
-                    "hl7" : data2
-                };
-
-                if (OPENSOCKS[msg_id]===undefined) {
-                    // Using a Timeout if no response has been sended within the timeout.
-                    TIMEOUTS[msg_id] = setTimeout(function () {
-                        handleAck(event);
-                    }, TIMEOUT);
-
-                    OPENSOCKS[msg_id] = {sock: sock, org: self.message}; // save socket and Message for Response
-
-                    /**
-                     * MLLP HL7 Event. Fired when a HL7 Message is received.
-                     * @event MLLPServer#hl7
-                     * @type {string}
-                     * @property {object} Event with the message string (msg), the Msg-ID, the default ACK and the parsed HL7 Object
-                     */
-                    self.emit('hl7', event);
-                } else {
-                    // The Message ID is currently already in Progress... send a direkt REJECT-Message
-                    var ack = self.createResponse(event.hl7, "AR", "Message already in progress");
-                    sock.write(VT + ack + FS + CR);
-                }
+            if (self.message.indexOf(VTi) > 0) {
+                // got a new Message indicator - but there is something before that message- handle as (not proper closed) message:
+                var unwrappedBuffer = self.message.slice(0, self.message.indexOf(VTi));
+                self.message = self.message.slice(self.message.indexOf(VTi)+1);
+                handleIncomingMessage(unwrappedBuffer);
             }
 
         });
