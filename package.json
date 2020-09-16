@@ -7,6 +7,13 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "Dmitry Kachaev <dmitry.kachaev@gmail.com> (http://github.com/kachok)",
+  "contributors": [
+    {
+      "name": "Alexander Drexler",
+      "email": "dx2308@googlemail.com",
+      "url": "http://github.com/tkalex"
+    }
+  ],
   "repository": {
     "type": "git",
     "url": "git@github.com:amida-tech/mllp.git"

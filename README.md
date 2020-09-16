@@ -1,5 +1,34 @@
 mllp
 ====
+Fork, for original see below:
+
+[![NPM](https://nodei.co/npm/mllp-fork-tkalex.png)](https://nodei.co/npm/mllp-fork-tkalex/)
+
+Changes:
+- Multi Message Support on a single Socket Connection
+- Basic Character Encoding Support 
+- Timeout with Auto-Response
+- Supports bind to all Interfaces (0.0.0.0)
+
+Sample (see example.js):
+```javascript
+var mllp = require('mllp-node');
+var timeout = 600; // ms
+var server = new mllp.MLLPServer('0.0.0.0', 1234, timeout);
+
+// Subscribe to inbound messages
+server.on('hl7', function (data){
+    console.log('received payload:', data);
+});
+
+// Send outbound messages
+server.send('127.0.0.1', 4321, 'outbound-hl7-message', function (err, ackData) {
+    // async callback code here
+});
+```
+
+Original Readme:
+
 
 [![NPM](https://nodei.co/npm/mllp-node.png)](https://nodei.co/npm/mllp-node/)
 

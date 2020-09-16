@@ -16,7 +16,7 @@ var mllpSendMessage = function (receivingHost, receivingPort, hl7Data, callback,
     logger = logger || console.log;
     if (typeof hl7Data ==="object" && (typeof hl7Data.render)==="function") {
         hl7Data = hl7Data.render();
-    } else if (typeof hl7Data ==="object" && !hl7Data instanceof Buffer) {
+    } else if (typeof hl7Data ==="object" && !(hl7Data instanceof Buffer)) {
         hl7Data = hl7.serializeJSON(hl7Data);
     }
 
@@ -64,10 +64,23 @@ var mllpCreateResponse = function(data) {
     var header = [data[0]];
 
     //switch around sender/receiver names
+    var app = data[0][3];
+    var fac = data[0][4];
     header[0][3] = data[0][5];
     header[0][4] = data[0][6];
-    header[0][5] = data[0][3];
-    header[0][6] = data[0][4];
+    header[0][5] = app;
+    header[0][6] = fac;
+    var dt = new Date();
+    dt = dt.getFullYear() + "" +
+        ("0" + (dt.getMonth()+1)).slice(-2) + "" +
+        ("0" + dt.getDate()).slice(-2) + "" +
+        ("0" + dt.getHours()).slice(-2) + "" +
+        ("0" + dt.getMinutes()).slice(-2) + "" +
+        ("0" + dt.getSeconds()).slice(-2);
+    var msgid = (dt + Math.random()).substr(0, 22);
+    header[0][7] = dt;
+    header[0][9] = "ACK";
+    header[0][10] = msgid;
 
     return hl7.serializeJSON(header);
 };
@@ -78,24 +91,25 @@ var mllpCreateResponse = function(data) {
  * @param {integer} port a valid free port for the server to listen on.
  * @param {object} logger
  * @param {integer} timeout after which the answer is sended.
- * 
- * @fires MLLPServer#hl7  
- * 
+ * @param {string} defaultCharset for Message decoding
+ *
+ * @fires MLLPServer#hl7
+ *
  * @example
  * var server = new MLLPServer('hl7server.mydomain', 3333, console.log);
- * 
+ *
  * server.on('hl7', function(message) {
  *  console.log("Message: " + message);
  *  // INSERT Unmarshalling or Processing here
  * });
- * 
+ *
  * @example
  * <caption>An ACK is sent back to the server</caption>
  *  MSH|^~\&|SOMELAB|SOMELAB|SOMELAB|SOMELAB|20080511103530||ORU^R01|Q335939501T337311002|P|2.3|||
  *  MSA|AA|Q335939501T337311002
- * 
+ *
  */
-function MLLPServer(host, port, logger, timeout) {
+function MLLPServer(host, port, logger, timeout, defaultCharset) {
 
     var self = this;
     this.message = Buffer.from('', 'binary');
@@ -105,16 +119,17 @@ function MLLPServer(host, port, logger, timeout) {
     logger = logger || console.log;
     var TIMEOUTS = {};
     var OPENSOCKS = {};
+    var charset = defaultCharset !== undefined ? defaultCharset + "" : "UNICODE UTF-8";
 
     self.createResponseHeader = mllpCreateResponse;
 
     self.createResponse = function(data, ack_type, error_msg) {
         //get message ID
-        var msg_id = data[0][10];
+        var msg_id = data[0][10]; // or 10?
         return self.createResponseHeader(data)  + "\r" + "MSA|" + ack_type + "|" + msg_id + (error_msg && error_msg.length>0?"|" + error_msg:"");
     };
 
-    var handleAck = function(event) {
+    var handleAck = function(event, mode) {
         if (event && event.id && event.ack) {
             if (OPENSOCKS[event.id]!==undefined) {
                 var inMsg = OPENSOCKS[event.id];
@@ -145,10 +160,10 @@ function MLLPServer(host, port, logger, timeout) {
                     }
                     inMsg.sock.write(VT + ack + FS + CR);
                 } catch (e) {
-                    logger("Error sending response", e);
+                    logger("Error sending response in mode " + mode, e);
                 }
             } else {
-                logger("Reponse already send! Cannot process response" ,event);
+                logger("Reponse already send! Cannot process another response in mode " + mode ,event);
             }
         } else {
             logger("Response without Message ID?", event);
@@ -186,13 +201,18 @@ function MLLPServer(host, port, logger, timeout) {
             var data2 = hl7.parseString(messageString);
             var msg_id = data2[0][10];
             var encoding = data2[0][18] + "";
-            if (encoding !== undefined && encoding !== null && encoding !== 'UNICODE UTF-8') {
+            if (encoding !== undefined && encoding !== null) {
+                // use Default:
+                encoding = charset;
+            }
+
+            if (encoding !== 'UNICODE UTF-8') {
                 // Decoding needed:
                 messageString = decoder(messageBuffer, encoding);
                 data2 = hl7.parseString(messageString);
                 msg_id = data2[0][10];
             }
-            logger("Message:\r\n" + messageString + "\r\n\r\n");
+            logger("Message:\r\n" + messageString.replace(/\r/g,"\n") + "\r\n\r\n");
 
             var event = {
                 "msg" : messageString,
@@ -205,7 +225,7 @@ function MLLPServer(host, port, logger, timeout) {
             if (OPENSOCKS[msg_id]===undefined) {
                 // Using a Timeout if no response has been sended within the timeout.
                 TIMEOUTS[msg_id] = setTimeout(function () {
-                    handleAck(event);
+                    handleAck(event, "timeout");
                 }, TIMEOUT);
 
                 OPENSOCKS[msg_id] = {sock: sock, org: self.message}; // save socket and Message for Response
@@ -264,7 +284,7 @@ function MLLPServer(host, port, logger, timeout) {
     });
 
     self.response = function(event) {
-        handleAck(event);
+        handleAck(event, "direct");
     };
 
     self.sendResponse = function(msgId, ack) {
