@@ -121,7 +121,7 @@ export class MLLPServer extends EventEmitter {
     private TIMEOUTS: any
     private OPENSOCKS: any;
     protected Server: net.Server
-
+    protected connectionEventState: MLLPConnectionState
     constructor(host:string, port:number, defaultLogger?: (msg: string) => void, timeout?:number, defaultCharset?: string) {
         super()
         this.HOST = host || '127.0.0.1'
@@ -132,32 +132,33 @@ export class MLLPServer extends EventEmitter {
         this.TIMEOUTS = {};
         this.OPENSOCKS = {};
         this.charset = defaultCharset !== undefined ? defaultCharset + "" : "UNICODE UTF-8";
+        this.connectionEventState = {
+            host: this.HOST,
+            port: this.PORT,
+            connected: false,
+            remote: null
+        }
 
         try {
             const self = this
-            const connectionEventState : MLLPConnectionState = {
-                host: this.HOST,
-                port: this.PORT,
-                connected: false,
-                remote: null
-            };
+
             setImmediate(() => {
-                this.emit("hl7-ready", connectionEventState);
+                this.emit("hl7-ready", this.connectionEventState);
             });
             this.Server = net.createServer((sock) => {
 
                 this.logger('CONNECTED: ' + sock.remoteAddress + ':' + sock.remotePort);
 
                 // Tell the outside world out connection state:
-                connectionEventState.connected = true;
-                connectionEventState.remote = sock.remoteAddress + ":" + sock.remotePort;
-                this.emit("hl7-connected", connectionEventState);
+                this.connectionEventState.connected = true;
+                this.connectionEventState.remote = sock.remoteAddress + ":" + sock.remotePort;
+                this.emit("hl7-connected", this.connectionEventState);
 
                 sock.on('end', () => {
                     // This should not happen, but if it does, tell everyone who is interested
-                    connectionEventState.connected = false;
-                    connectionEventState.remote = null;
-                    this.emit("hl7-closed", connectionEventState);
+                    this.connectionEventState.connected = false;
+                    this.connectionEventState.remote = null;
+                    this.emit("hl7-closed", this.connectionEventState);
                     this.logger('server disconnected', this.HOST, this.PORT);
                 });
 
@@ -241,9 +242,9 @@ export class MLLPServer extends EventEmitter {
                 sock.on('close', () => {
                     this.logger('CLOSED: ' + sock.remoteAddress + ' ' + sock.remotePort);
                     // Tell the outside world out connection state:
-                    connectionEventState.connected = false;
-                    connectionEventState.remote = null;
-                    this.emit("hl7-disconnected", connectionEventState);
+                    this.connectionEventState.connected = false;
+                    this.connectionEventState.remote = null;
+                    this.emit("hl7-disconnected", this.connectionEventState);
                 });
 
             });
@@ -261,6 +262,18 @@ export class MLLPServer extends EventEmitter {
             this.logger(`Error Listen to ${this.HOST}:${this.PORT}`, e)
             throw new Error(`Error Listen to ${this.HOST}:${this.PORT}`)
         }
+    }
+
+    public port() : number {
+        return this.PORT
+    }
+
+    public isConnected() : boolean {
+        return this.connectionEventState.connected
+    }
+
+    public currentRemote(): string|null {
+        return this.connectionEventState.remote
     }
 
     public static createResponseHeader (data:any) : string {
