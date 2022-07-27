@@ -80,6 +80,14 @@ export function mllpSendMessage (
     });
 }
 
+export interface IncomingMessageEvent {
+    msg: string
+    id: string
+    ack: string
+    hl7: any
+    buffer: Buffer
+}
+
 export interface MLLPConnectionState {
     host: string
     port: number
@@ -162,11 +170,11 @@ export class MLLPServer extends EventEmitter {
                     this.logger('server disconnected', this.HOST, this.PORT);
                 });
 
-                var handleIncomingMessage = (messageBuffer:Buffer) => {
-                    var messageString = messageBuffer.toString();
-                    var data2 = hl7.parseString(messageString);
-                    var msg_id = data2[0][10];
-                    var encoding = data2[0][18] + "";
+                const handleIncomingMessage = (messageBuffer:Buffer) => {
+                    let messageString = messageBuffer.toString();
+                    let data2 = hl7.parseString(messageString);
+                    let msg_id : string = data2[0][10] + "";
+                    let encoding = data2[0][18] + "";
                     if (encoding !== undefined && encoding !== null) {
                         // use Default:
                         encoding = this.charset;
@@ -176,16 +184,16 @@ export class MLLPServer extends EventEmitter {
                         // Decoding needed:
                         messageString = decoder(messageBuffer, encoding);
                         data2 = hl7.parseString(messageString);
-                        msg_id = data2[0][10];
+                        msg_id = data2[0][10] + "";
                     }
                     this.logger("Message:\r\n" + messageString.replace(/\r/g, "\n") + "\r\n\r\n");
 
-                    var event = {
-                        "msg": messageString,
-                        "id": msg_id,
-                        "ack": "AA",
-                        "hl7": data2,
-                        "buffer": messageBuffer
+                    const event : IncomingMessageEvent = {
+                        id: msg_id,
+                        ack: "AA",
+                        msg: messageString,
+                        hl7: data2,
+                        buffer: messageBuffer
                     };
 
                     if (this.OPENSOCKS[msg_id] === undefined) {
