@@ -2,12 +2,18 @@
   "name": "mllp-node",
   "version": "2.0.0",
   "description": "MLLP (HL7) implementation in Node.js",
-  "main": "index.js",
+  "main": "src/index.js",
+  "types": "src/index.ts",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "tsc",
+    "test": "tsc && grunt"
   },
-  "author": "Dmitry Kachaev <dmitry.kachaev@gmail.com> (http://github.com/kachok)",
   "contributors": [
+    {
+      "name": "Dmitry Kachaev",
+      "email": "dmitry.kachaev@gmail.com",
+      "url": "http://github.com/kachok"
+    },
     {
       "name": "Alexander Drexler",
       "email": "dx2308@googlemail.com",
@@ -16,28 +22,30 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git@github.com:amida-tech/mllp.git"
+    "url": "git@github.com:tka-lex/mllp.git"
   },
   "bugs": {
     "url": "https://github.com/amida-tech/mllp/issues"
   },
   "license": "Apache-2.0",
   "devDependencies": {
+    "@types/node": "^18.6.1",
+    "chai": "4.1.x",
+    "chai-datetime": "1.5.x",
+    "coveralls": "3.0.x",
     "grunt": "1.0.x",
     "grunt-contrib-jshint": "1.1.x",
     "grunt-contrib-watch": "1.1.x",
-    "grunt-mocha-test": "0.13.x",
-    "grunt-jsbeautifier": "^0.2.x",
-    "mocha": "5.2.x",
-    "chai": "4.1.x",
-    "chai-datetime": "1.5.x",
     "grunt-coveralls": "*",
     "grunt-istanbul-coverage": "*",
-    "coveralls": "3.0.x",
-    "mocha-lcov-reporter": "1.3.x"
+    "grunt-jsbeautifier": "^0.2.x",
+    "grunt-mocha-test": "0.13.x",
+    "mocha": "5.2.x",
+    "mocha-lcov-reporter": "1.3.x",
+    "typescript": "^4.7.4"
   },
   "engines": {
-    "node": "8.x.x"
+    "node": ">=8.x.x"
   },
   "dependencies": {
     "hl7": "1.x.x",

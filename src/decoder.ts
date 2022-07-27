@@ -1,6 +1,6 @@
-var iconv = require('iconv-lite');
+const iconv = require('iconv-lite')
 
-module.exports = function (msgBuffer, hl7Encoding) {
+export default function (msgBuffer: Buffer, hl7Encoding: string) {
     try {
         if (hl7Encoding.startsWith("8859/")) {
             return iconv.decode(msgBuffer, "ISO-" + hl7Encoding.replace("/","-"));

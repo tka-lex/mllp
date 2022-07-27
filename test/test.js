@@ -1,6 +1,6 @@
 var assert = require('chai').assert;
 var fs = require('fs');
-var mllp = require('../index.js');
+var mllp = require('../src/index.js');
 var net = require('net');
 
 var VT = String.fromCharCode(0x0b);
