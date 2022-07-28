@@ -236,6 +236,12 @@ class MLLPServer extends events_1.default {
                     this.logger("Listen now to [any]:" + this.PORT);
                 });
             }
+            this.Server.on("close", () => {
+                this.emit("hl7-closed", { port: this.PORT, host: this.HOST });
+            });
+            this.Server.on('error', err => {
+                this.logger(`Error during MLLP Connection`, err);
+            });
         }
         catch (e) {
             this.logger(`Error Listen to ${this.HOST}:${this.PORT}`, e);
