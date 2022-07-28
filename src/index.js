@@ -127,35 +127,35 @@ class MLLPServer extends events_1.default {
         this.TIMEOUTS = {};
         this.OPENSOCKS = {};
         this.charset = defaultCharset !== undefined ? defaultCharset + "" : "UNICODE UTF-8";
+        this.connectionEventState = {
+            host: this.HOST,
+            port: this.PORT,
+            connected: false,
+            remote: null
+        };
         try {
             const self = this;
-            const connectionEventState = {
-                host: this.HOST,
-                port: this.PORT,
-                connected: false,
-                remote: null
-            };
             setImmediate(() => {
-                this.emit("hl7-ready", connectionEventState);
+                this.emit("hl7-ready", this.connectionEventState);
             });
             this.Server = net_1.default.createServer((sock) => {
                 this.logger('CONNECTED: ' + sock.remoteAddress + ':' + sock.remotePort);
                 // Tell the outside world out connection state:
-                connectionEventState.connected = true;
-                connectionEventState.remote = sock.remoteAddress + ":" + sock.remotePort;
-                this.emit("hl7-connected", connectionEventState);
+                this.connectionEventState.connected = true;
+                this.connectionEventState.remote = sock.remoteAddress + ":" + sock.remotePort;
+                this.emit("hl7-connected", this.connectionEventState);
                 sock.on('end', () => {
                     // This should not happen, but if it does, tell everyone who is interested
-                    connectionEventState.connected = false;
-                    connectionEventState.remote = null;
-                    this.emit("hl7-closed", connectionEventState);
+                    this.connectionEventState.connected = false;
+                    this.connectionEventState.remote = null;
+                    this.emit("hl7-closed", this.connectionEventState);
                     this.logger('server disconnected', this.HOST, this.PORT);
                 });
-                var handleIncomingMessage = (messageBuffer) => {
-                    var messageString = messageBuffer.toString();
-                    var data2 = hl7.parseString(messageString);
-                    var msg_id = data2[0][10];
-                    var encoding = data2[0][18] + "";
+                const handleIncomingMessage = (messageBuffer) => {
+                    let messageString = messageBuffer.toString();
+                    let data2 = hl7.parseString(messageString);
+                    let msg_id = data2[0][10] + "";
+                    let encoding = data2[0][18] + "";
                     if (encoding !== undefined && encoding !== null) {
                         // use Default:
                         encoding = this.charset;
@@ -164,15 +164,15 @@ class MLLPServer extends events_1.default {
                         // Decoding needed:
                         messageString = (0, decoder_1.default)(messageBuffer, encoding);
                         data2 = hl7.parseString(messageString);
-                        msg_id = data2[0][10];
+                        msg_id = data2[0][10] + "";
                     }
                     this.logger("Message:\r\n" + messageString.replace(/\r/g, "\n") + "\r\n\r\n");
-                    var event = {
-                        "msg": messageString,
-                        "id": msg_id,
-                        "ack": "AA",
-                        "hl7": data2,
-                        "buffer": messageBuffer
+                    const event = {
+                        id: msg_id,
+                        ack: "AA",
+                        msg: messageString,
+                        hl7: data2,
+                        buffer: messageBuffer
                     };
                     if (this.OPENSOCKS[msg_id] === undefined) {
                         // Using a Timeout if no response has been sended within the timeout.
@@ -221,9 +221,9 @@ class MLLPServer extends events_1.default {
                 sock.on('close', () => {
                     this.logger('CLOSED: ' + sock.remoteAddress + ' ' + sock.remotePort);
                     // Tell the outside world out connection state:
-                    connectionEventState.connected = false;
-                    connectionEventState.remote = null;
-                    this.emit("hl7-disconnected", connectionEventState);
+                    this.connectionEventState.connected = false;
+                    this.connectionEventState.remote = null;
+                    this.emit("hl7-disconnected", this.connectionEventState);
                 });
             });
             if (this.HOST !== '0.0.0.0') {
@@ -241,6 +241,15 @@ class MLLPServer extends events_1.default {
             this.logger(`Error Listen to ${this.HOST}:${this.PORT}`, e);
             throw new Error(`Error Listen to ${this.HOST}:${this.PORT}`);
         }
+    }
+    port() {
+        return this.PORT;
+    }
+    isConnected() {
+        return this.connectionEventState.connected;
+    }
+    currentRemote() {
+        return this.connectionEventState.remote;
     }
     static createResponseHeader(data) {
         const header = [data[0]];
