@@ -1,6 +1,6 @@
 {
-  "name": "mllp-node",
-  "version": "2.0.0",
+  "name": "mllp-node-sl7",
+  "version": "2.1.0",
   "description": "MLLP (HL7) implementation in Node.js",
   "main": "src/index.js",
   "types": "src/index.ts",
@@ -48,7 +48,7 @@
     "node": ">=8.x.x"
   },
   "dependencies": {
-    "hl7": "1.x.x",
+    "sb-sl7": "^2.0.11",
     "iconv-lite": "^0.6.0"
   }
 }
