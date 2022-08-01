@@ -1,14 +1,16 @@
 mllp
 ====
-Fork, for original see below:
+Fork, for original Readme see below!
 
-[![NPM](https://nodei.co/npm/mllp-fork-tkalex.png)](https://nodei.co/npm/mllp-fork-tkalex/)
+# Install:
+[![NPM](https://nodei.co/npm/mllp-node-sl7.png)](https://nodei.co/npm/mllp-node-sl7/)
 
 Changes:
 - Multi Message Support on a single Socket Connection
 - Basic Character Encoding Support 
 - Timeout with Auto-Response
 - Supports bind to all Interfaces (0.0.0.0)
+- Using Package [sb-sl7](https://github.com/sourceblock-ug/sb-sl7) for Message parsing 
 
 Sample (see example.js):
 ```javascript
