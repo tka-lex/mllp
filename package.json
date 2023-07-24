@@ -53,6 +53,6 @@
   },
   "dependencies": {
     "iconv-lite": "^0.6.0",
-    "sb-sl7": "^2.0.11"
+    "@sourceblock-ug/sb-sl7": "^2.0.17"
   }
 }

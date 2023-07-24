@@ -6,7 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.MLLPServer = exports.mllpSendMessage = void 0;
 const net_1 = __importDefault(require("net"));
 const events_1 = __importDefault(require("events"));
-const message_1 = require("sb-sl7/dist/message");
+const sb_sl7_1 = require("@sourceblock-ug/sb-sl7");
 const decoder_1 = __importDefault(require("./decoder"));
 // The header is a vertical tab character <VT> its hex value is 0x0b.
 // The trailer is a field separator character <FS> (hex 0x1c) immediately followed by a carriage return <CR> (hex 0x0d)
@@ -71,6 +71,7 @@ exports.mllpSendMessage = mllpSendMessage;
  * @param defaultLogger
  * @param {number} timeout after which the answer is sended.
  * @param {string} defaultCharset for Message decoding
+ * @param {string} timeoutAck like AA or AE - default is AA
  *
  * @fires MLLPServer#hl7
  *
@@ -89,7 +90,7 @@ exports.mllpSendMessage = mllpSendMessage;
  *
  */
 class MLLPServer extends events_1.default {
-    constructor(host, port, defaultLogger, timeout, defaultCharset) {
+    constructor(host, port, defaultLogger, timeout, defaultCharset, timeoutAck) {
         super();
         this.openConnections = [];
         this.HOST = host || "127.0.0.1";
@@ -99,6 +100,10 @@ class MLLPServer extends events_1.default {
         this.logger = defaultLogger || console.log;
         this.TIMEOUTS = {};
         this.openEvents = {};
+        this.timeoutAck =
+            typeof timeoutAck === "string" && timeoutAck.length === 2
+                ? timeoutAck.toUpperCase()
+                : "AA";
         this.charset =
             defaultCharset !== undefined ? `${defaultCharset}` : "UNICODE UTF-8";
         this.connectionEventState = {
@@ -119,7 +124,7 @@ class MLLPServer extends events_1.default {
                 });
                 const handleIncomingMessage = (messageBuffer) => {
                     let messageString = messageBuffer.toString();
-                    let data2 = new message_1.Message(messageString);
+                    let data2 = new sb_sl7_1.Message(messageString);
                     let msgId = data2.getString("MSH-10");
                     let encoding = data2.getString("MSH-18");
                     if (encoding === undefined || encoding === null || encoding === "") {
@@ -129,13 +134,13 @@ class MLLPServer extends events_1.default {
                     if (encoding !== "UNICODE UTF-8") {
                         // Decoding needed:
                         messageString = (0, decoder_1.default)(messageBuffer, encoding);
-                        data2 = new message_1.Message(messageString);
+                        data2 = new sb_sl7_1.Message(messageString);
                         msgId = data2.getString("MSH-10");
                     }
                     this.logger(`Message:\r\n${messageString.replace(/\r/g, "\n")}\r\n\r\n`);
                     const event = {
                         id: msgId,
-                        ack: "AA",
+                        ack: this.timeoutAck,
                         msg: messageString,
                         hl7: data2,
                         buffer: messageBuffer,
@@ -156,7 +161,9 @@ class MLLPServer extends events_1.default {
                     }
                     else {
                         // The Message ID is currently already in Progress... send a direkt REJECT-Message
-                        const ack = message_1.Message.createResponse(event.hl7, "AR", "Message already in progress").render();
+                        const ackMsg = sb_sl7_1.Message.createResponse(event.hl7, "AR", "Message already in progress");
+                        ackMsg.cleanup();
+                        const ack = ackMsg.render();
                         sock.write(VT + ack + FS + CR);
                     }
                 };
@@ -250,7 +257,9 @@ class MLLPServer extends events_1.default {
         return this.connectionEventState.remote;
     }
     static createResponseHeader(data) {
-        return message_1.Message.createResponse(data).render();
+        const message = sb_sl7_1.Message.createResponse(data);
+        message.cleanup();
+        return message.render();
     }
     handleAck(event, mode) {
         if (this.openEvents[event.id] !== undefined) {
@@ -269,13 +278,17 @@ class MLLPServer extends events_1.default {
                 else if (typeof event.ack === "string" &&
                     event.ack.length === 2 &&
                     event.hl7) {
-                    ack = message_1.Message.createResponse(event.hl7, event.ack).render();
+                    const ackMsg = sb_sl7_1.Message.createResponse(event.hl7, event.ack);
+                    ackMsg.cleanup();
+                    ack = ackMsg.render();
                 }
                 else if (typeof event.ack === "string") {
                     ack = event.ack;
                 }
                 else {
-                    ack = message_1.Message.createResponse(event.hl7, "AA").render();
+                    const ackMsg = sb_sl7_1.Message.createResponse(event.hl7, this.timeoutAck);
+                    ackMsg.cleanup();
+                    ack = ackMsg.render();
                 }
                 inMsg.sock.write(VT + ack + FS + CR);
             }
@@ -290,7 +303,7 @@ class MLLPServer extends events_1.default {
     response(event) {
         if (this.openEvents[event.id] !== undefined) {
             const inMsg = this.openEvents[event.id];
-            this.handleAck(Object.assign({ hl7: new message_1.Message(inMsg.org), msg: inMsg.org.toString(), buffer: inMsg.org }, event), "direct");
+            this.handleAck(Object.assign({ hl7: new sb_sl7_1.Message(inMsg.org), msg: inMsg.org.toString(), buffer: inMsg.org }, event), "direct");
         }
         else {
             this.logger(`Response already send! Cannot process another response directly.`, event);

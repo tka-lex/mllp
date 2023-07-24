@@ -3,7 +3,7 @@
 /// <reference types="node" />
 import net from "net";
 import EventEmitter from "events";
-import { Message } from "sb-sl7/dist/message";
+import { Message } from "@sourceblock-ug/sb-sl7";
 export interface Renderable {
     render(): string | Buffer;
 }
@@ -30,6 +30,7 @@ export interface MLLPConnectionState {
  * @param defaultLogger
  * @param {number} timeout after which the answer is sended.
  * @param {string} defaultCharset for Message decoding
+ * @param {string} timeoutAck like AA or AE - default is AA
  *
  * @fires MLLPServer#hl7
  *
@@ -59,7 +60,8 @@ export declare class MLLPServer extends EventEmitter {
     protected Server: net.Server;
     protected connectionEventState: MLLPConnectionState;
     private readonly openConnections;
-    constructor(host: string, port: number, defaultLogger?: (msg: string) => void, timeout?: number, defaultCharset?: string);
+    private readonly timeoutAck;
+    constructor(host: string, port: number, defaultLogger?: (msg: string) => void, timeout?: number, defaultCharset?: string, timeoutAck?: string);
     private updateState;
     private addSocket;
     private removeSocket;

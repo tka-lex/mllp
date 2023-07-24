@@ -1,6 +1,6 @@
 import net from "net";
 import EventEmitter from "events";
-import { Message } from "sb-sl7/dist/message";
+import { Message } from "@sourceblock-ug/sb-sl7";
 import decoder from "./decoder";
 
 // The header is a vertical tab character <VT> its hex value is 0x0b.
@@ -115,6 +115,7 @@ interface OpenSocket {
  * @param defaultLogger
  * @param {number} timeout after which the answer is sended.
  * @param {string} defaultCharset for Message decoding
+ * @param {string} timeoutAck like AA or AE - default is AA
  *
  * @fires MLLPServer#hl7
  *
@@ -155,12 +156,15 @@ export class MLLPServer extends EventEmitter {
 
   private readonly openConnections: net.Socket[] = [];
 
+  private readonly timeoutAck: string;
+
   constructor(
     host: string,
     port: number,
     defaultLogger?: (msg: string) => void,
     timeout?: number,
-    defaultCharset?: string
+    defaultCharset?: string,
+    timeoutAck?: string
   ) {
     super();
     this.HOST = host || "127.0.0.1";
@@ -170,6 +174,10 @@ export class MLLPServer extends EventEmitter {
     this.logger = defaultLogger || console.log;
     this.TIMEOUTS = {};
     this.openEvents = {};
+    this.timeoutAck =
+      typeof timeoutAck === "string" && timeoutAck.length === 2
+        ? timeoutAck.toUpperCase()
+        : "AA";
     this.charset =
       defaultCharset !== undefined ? `${defaultCharset}` : "UNICODE UTF-8";
     this.connectionEventState = {
@@ -213,7 +221,7 @@ export class MLLPServer extends EventEmitter {
 
           const event: IncomingMessageEvent = {
             id: msgId,
-            ack: "AA",
+            ack: this.timeoutAck,
             msg: messageString,
             hl7: data2,
             buffer: messageBuffer,
@@ -236,11 +244,13 @@ export class MLLPServer extends EventEmitter {
             this.emit("hl7", event);
           } else {
             // The Message ID is currently already in Progress... send a direkt REJECT-Message
-            const ack = Message.createResponse(
+            const ackMsg = Message.createResponse(
               event.hl7,
               "AR",
               "Message already in progress"
-            ).render();
+            );
+            ackMsg.cleanup();
+            const ack = ackMsg.render();
             sock.write(VT + ack + FS + CR);
           }
         };
@@ -357,7 +367,9 @@ export class MLLPServer extends EventEmitter {
   }
 
   public static createResponseHeader(data: Message | string | object): string {
-    return Message.createResponse(data).render();
+    const message = Message.createResponse(data);
+    message.cleanup();
+    return message.render();
   }
 
   private handleAck(event: IncomingMessageEvent, mode: any): void {
@@ -380,11 +392,15 @@ export class MLLPServer extends EventEmitter {
           event.ack.length === 2 &&
           event.hl7
         ) {
-          ack = Message.createResponse(event.hl7, event.ack).render();
+          const ackMsg = Message.createResponse(event.hl7, event.ack);
+          ackMsg.cleanup();
+          ack = ackMsg.render();
         } else if (typeof event.ack === "string") {
           ack = event.ack;
         } else {
-          ack = Message.createResponse(event.hl7, "AA").render();
+          const ackMsg = Message.createResponse(event.hl7, this.timeoutAck);
+          ackMsg.cleanup();
+          ack = ackMsg.render();
         }
         inMsg.sock.write(VT + ack + FS + CR);
       } catch (e) {

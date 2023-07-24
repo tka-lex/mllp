@@ -18,3 +18,5 @@ This is the initial release of this library.
 - added Socket-Termination on server.close()
 - Switched to eslint & prettier and Updated code accordingly 
 - updated dependencies
+- switched to @sourceblock-ug/sb-sl7, Version 2.0.17; added cleanup on handleAck(); 
+- added default Response as Param to Constructor
