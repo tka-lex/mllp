@@ -1,18 +1,20 @@
 /// <reference types="node" />
 /// <reference types="node" />
 /// <reference types="node" />
-import net from 'net';
+import net from "net";
 import EventEmitter from "events";
 import { Message } from "sb-sl7/dist/message";
 export interface Renderable {
     render(): string | Buffer;
 }
 export declare function mllpSendMessage(receivingHost: string, receivingPort: number, hl7Data: Buffer | Renderable | string, callback: (err: Error | null, response: string | null) => void, logger?: (msg: string) => void): void;
-export interface IncomingMessageEvent {
-    msg: string;
+export interface MessageResponseEvent {
     id: string;
-    ack: string;
-    hl7: any;
+    ack: string | Renderable | unknown;
+}
+export interface IncomingMessageEvent extends MessageResponseEvent {
+    msg: string;
+    hl7: Message;
     buffer: Buffer;
 }
 export interface MLLPConnectionState {
@@ -24,9 +26,9 @@ export interface MLLPConnectionState {
 /**
  * @constructor MLLPServer
  * @param {string} host a resolvable hostname or IP Address
- * @param {integer} port a valid free port for the server to listen on.
+ * @param {number} port a valid free port for the server to listen on.
  * @param defaultLogger
- * @param {integer} timeout after which the answer is sended.
+ * @param {number} timeout after which the answer is sended.
  * @param {string} defaultCharset for Message decoding
  *
  * @fires MLLPServer#hl7
@@ -50,21 +52,25 @@ export declare class MLLPServer extends EventEmitter {
     protected readonly PORT: number;
     protected readonly TIMEOUT: number;
     protected message: Buffer;
-    protected logger: (msg: string, ...data: any[]) => void;
+    protected logger: (msg: string, ...data: unknown[]) => void;
     protected charset: string;
     private readonly TIMEOUTS;
-    private readonly OPENSOCKS;
+    private readonly openEvents;
     protected Server: net.Server;
     protected connectionEventState: MLLPConnectionState;
+    private readonly openConnections;
     constructor(host: string, port: number, defaultLogger?: (msg: string) => void, timeout?: number, defaultCharset?: string);
+    private updateState;
+    private addSocket;
+    private removeSocket;
     port(): number;
     isConnected(): boolean;
     currentRemote(): string | null;
-    static createResponseHeader(data: Message | string | Object): string;
-    createResponse(data: Message | string | Object, ack_type: string, error_msg?: string): string;
-    handleAck(event: any, mode: any): void;
-    response(event: any): void;
+    static createResponseHeader(data: Message | string | object): string;
+    private handleAck;
+    response(event: MessageResponseEvent): void;
     sendResponse(msgId: string, ack: string): void;
     send(receivingHost: string, receivingPort: number, hl7Data: Buffer | Renderable | string, callback: (err: Error | null, response: string | null) => void): void;
     close(done?: (err?: Error) => void): void;
+    private static closeSocket;
 }

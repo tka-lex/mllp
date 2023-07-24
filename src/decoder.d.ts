@@ -1,2 +1,3 @@
 /// <reference types="node" />
-export default function (msgBuffer: Buffer, hl7Encoding: string): any;
+declare function decode(msgBuffer: Buffer, hl7Encoding: string): string;
+export default decode;

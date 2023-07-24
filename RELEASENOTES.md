@@ -12,3 +12,9 @@ This is the initial release of this library.
 
 - Set minimum node version to be 8
 - Large message support
+
+# v2.1.1 - Juli 24 , 2023
+
+- added Socket-Termination on server.close()
+- Switched to eslint & prettier and Updated code accordingly 
+- updated dependencies
