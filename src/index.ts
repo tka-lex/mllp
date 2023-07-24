@@ -126,7 +126,8 @@ export class MLLPServer extends EventEmitter {
     private readonly TIMEOUTS: any
     private readonly OPENSOCKS: any;
     protected Server: net.Server
-    protected connectionEventState: MLLPConnectionState
+    protected connectionEventState: MLLPConnectionState;
+    private readonly openConnections: net.Socket[] = [];
     constructor(host:string, port:number, defaultLogger?: (msg: string) => void, timeout?:number, defaultCharset?: string) {
         super()
         this.HOST = host || '127.0.0.1'
@@ -144,25 +145,20 @@ export class MLLPServer extends EventEmitter {
             remote: null
         }
 
+
+
+
         try {
-            setImmediate(() => {
-                this.emit("hl7-ready", this.connectionEventState);
-            });
             this.Server = net.createServer((sock) => {
 
                 this.logger('CONNECTED: ' + sock.remoteAddress + ':' + sock.remotePort);
-
-                // Tell the outside world out connection state:
-                this.connectionEventState.connected = true;
-                this.connectionEventState.remote = sock.remoteAddress + ":" + sock.remotePort;
-                this.emit("hl7-connected", this.connectionEventState);
+                this.addSocket(sock);
 
                 sock.on('end', () => {
                     // This should not happen, but if it does, tell everyone who is interested
-                    this.connectionEventState.connected = false;
-                    this.connectionEventState.remote = null;
-                    this.emit("hl7-closed", this.connectionEventState);
+                    this.emit("hl7-closed", this.updateState());
                     this.logger('server disconnected', this.HOST, this.PORT);
+                    this.removeSocket(sock);
                 });
 
                 const handleIncomingMessage = (messageBuffer:Buffer) => {
@@ -245,9 +241,8 @@ export class MLLPServer extends EventEmitter {
                 sock.on('close', () => {
                     this.logger('CLOSED: ' + sock.remoteAddress + ' ' + sock.remotePort);
                     // Tell the outside world out connection state:
-                    this.connectionEventState.connected = false;
-                    this.connectionEventState.remote = null;
-                    this.emit("hl7-disconnected", this.connectionEventState);
+                    this.removeSocket(sock);
+                    this.emit("hl7-disconnected", this.updateState());
                 });
 
             });
@@ -255,10 +250,16 @@ export class MLLPServer extends EventEmitter {
             if (this.HOST !== '0.0.0.0') {
                 this.Server.listen(this.PORT, this.HOST, () => {
                     this.logger("Listen now to " + this.HOST + ":" + this.PORT);
+                    setImmediate(() => {
+                        this.emit("hl7-ready", this.updateState());
+                    });
                 });
             } else {
                 this.Server.listen(this.PORT, () => {
                     this.logger("Listen now to [any]:" + this.PORT);
+                    setImmediate(() => {
+                        this.emit("hl7-ready", this.updateState());
+                    });
                 });
             }
 
@@ -274,6 +275,32 @@ export class MLLPServer extends EventEmitter {
             throw new Error(`Error Listen to ${this.HOST}:${this.PORT}`)
         }
     }
+
+    private updateState():any {
+        this.connectionEventState.connected = this.openConnections.length>0;
+        let info = "";
+        for (const openConnection of this.openConnections) {
+            info = `${info}${info.length>0?", ": ""}${openConnection.remoteAddress}:${openConnection.remotePort}`;
+        }
+        this.connectionEventState.remote = info;
+        return this.connectionEventState;
+    };
+
+    private addSocket(sock: net.Socket): void {
+        this.openConnections.push(sock);
+        this.emit("hl7-connected", this.updateState());
+    };
+
+    private  removeSocket(sock: net.Socket): void {
+        const idx = this.openConnections.indexOf(sock);
+        if (idx >= 0) {
+            this.openConnections.splice(idx, 1);
+            this.emit("hl7-state", this.updateState());
+        }
+    };
+
+
+
 
     public port() : number {
         return this.PORT
@@ -352,7 +379,25 @@ export class MLLPServer extends EventEmitter {
     }
 
     public close (done?: (err?: Error) => void) {
-      this.Server.close(done);
+        // Do not accept new Connections:
+        this.Server.close(done);
+        // close all open Connections:
+        this.openConnections.forEach(MLLPServer.closeSocket)
+        this.openConnections.length = 0;
+    }
+
+    private static closeSocket(socket:net.Socket): void {
+        let timeout: NodeJS.Timeout|undefined = setTimeout(() => {
+            socket.destroy();
+            timeout = undefined;
+        }, 2000)
+        socket.end(() => {
+            // Ended
+            if (timeout !== undefined) {
+                clearTimeout(timeout);
+                timeout = undefined;
+            }
+        });
     }
 
 }
