@@ -52,7 +52,6 @@ export declare class MLLPServer extends EventEmitter {
     protected readonly HOST: string;
     protected readonly PORT: number;
     protected readonly TIMEOUT: number;
-    protected message: Buffer;
     protected logger: (msg: string, ...data: unknown[]) => void;
     protected charset: string;
     private readonly TIMEOUTS;
@@ -62,6 +61,7 @@ export declare class MLLPServer extends EventEmitter {
     private readonly openConnections;
     private readonly timeoutAck;
     constructor(host: string, port: number, defaultLogger?: (msg: string) => void, timeout?: number, defaultCharset?: string, timeoutAck?: string);
+    private handleIncomingMessage;
     private updateState;
     private addSocket;
     private removeSocket;

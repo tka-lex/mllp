@@ -140,8 +140,6 @@ export class MLLPServer extends EventEmitter {
 
   protected readonly TIMEOUT: number;
 
-  protected message: Buffer;
-
   protected logger: (msg: string, ...data: unknown[]) => void;
 
   protected charset: string;
@@ -169,7 +167,6 @@ export class MLLPServer extends EventEmitter {
     super();
     this.HOST = host || "127.0.0.1";
     this.PORT = port || 6969;
-    this.message = Buffer.from("", "binary");
     this.TIMEOUT = timeout || 600;
     this.logger = defaultLogger || console.log;
     this.TIMEOUTS = {};
@@ -189,6 +186,7 @@ export class MLLPServer extends EventEmitter {
 
     try {
       this.Server = net.createServer((sock) => {
+        let message: Buffer = Buffer.from("", "binary");
         this.logger(`CONNECTED: ${sock.remoteAddress}:${sock.remotePort}`);
         this.addSocket(sock);
 
@@ -199,90 +197,34 @@ export class MLLPServer extends EventEmitter {
           this.removeSocket(sock);
         });
 
-        const handleIncomingMessage = (messageBuffer: Buffer) => {
-          let messageString = messageBuffer.toString();
-          let data2 = new Message(messageString);
-          let msgId: string = data2.getString("MSH-10");
-          let encoding = data2.getString("MSH-18");
-          if (encoding === undefined || encoding === null || encoding === "") {
-            // use Default:
-            encoding = this.charset;
-          }
-
-          if (encoding !== "UNICODE UTF-8") {
-            // Decoding needed:
-            messageString = decoder(messageBuffer, encoding);
-            data2 = new Message(messageString);
-            msgId = data2.getString("MSH-10");
-          }
-          this.logger(
-            `Message:\r\n${messageString.replace(/\r/g, "\n")}\r\n\r\n`
-          );
-
-          const event: IncomingMessageEvent = {
-            id: msgId,
-            ack: this.timeoutAck,
-            msg: messageString,
-            hl7: data2,
-            buffer: messageBuffer,
-          };
-
-          if (this.openEvents[msgId] === undefined) {
-            // Using a Timeout if no response has been sended within the timeout.
-            this.TIMEOUTS[msgId] = setTimeout(() => {
-              this.handleAck(event, "timeout");
-            }, this.TIMEOUT);
-
-            this.openEvents[msgId] = { sock, org: this.message }; // save socket and Message for Response
-
-            /**
-             * MLLP HL7 Event. Fired when a HL7 Message is received.
-             * @event MLLPServer#hl7
-             * @type {string}
-             * @property {object} Event with the message string (msg), the Msg-ID, the default ACK and the parsed HL7 Object
-             */
-            this.emit("hl7", event);
-          } else {
-            // The Message ID is currently already in Progress... send a direkt REJECT-Message
-            const ackMsg = Message.createResponse(
-              event.hl7,
-              "AR",
-              "Message already in progress"
-            );
-            ackMsg.cleanup();
-            const ack = ackMsg.render();
-            sock.write(VT + ack + FS + CR);
-          }
-        };
-
         /*
          * handling incoming Data. Currently only one message per Connection is supported.
          */
         sock.on("data", (data) => {
-          this.message = Buffer.concat([this.message, data]);
+          message = Buffer.concat([message, data]);
 
-          while (this.message.indexOf(FS + CR) > -1) {
-            let subBuffer = this.message.subarray(
+          while (message.indexOf(FS + CR) > -1) {
+            let subBuffer = message.subarray(
               0,
-              this.message.indexOf(FS + CR)
+              message.indexOf(FS + CR)
             );
-            this.message = this.message.subarray(
-              this.message.indexOf(FS + CR) + 2
+            message = message.subarray(
+              message.indexOf(FS + CR) + 2
             );
             if (subBuffer.indexOf(VTi) > -1) {
               subBuffer = subBuffer.subarray(subBuffer.indexOf(VTi) + 1);
             }
-            handleIncomingMessage(subBuffer);
+            this.handleIncomingMessage(subBuffer, sock);
           }
 
-          if (this.message.indexOf(VTi) > 0) {
+          if (message.indexOf(VTi) > 0) {
             // got a new Message indicator - but there is something before that message - handle as (not proper closed) message:
-            const unwrappedBuffer = this.message.subarray(
+            const unwrappedBuffer = message.subarray(
               0,
-              this.message.indexOf(VTi)
+              message.indexOf(VTi)
             );
-            this.message = this.message.subarray(this.message.indexOf(VTi) + 1);
-            handleIncomingMessage(unwrappedBuffer);
+            message = message.subarray(message.indexOf(VTi) + 1);
+            this.handleIncomingMessage(unwrappedBuffer, sock);
           }
         });
 
@@ -327,6 +269,62 @@ export class MLLPServer extends EventEmitter {
       throw new Error(`Error Listen to ${this.HOST}:${this.PORT}`);
     }
   }
+
+  private handleIncomingMessage(messageBuffer: Buffer, sock: net.Socket){
+    let messageString = messageBuffer.toString();
+    let data2 = new Message(messageString);
+    let msgId: string = data2.getString("MSH-10");
+    let encoding = data2.getString("MSH-18");
+    if (encoding === undefined || encoding === null || encoding === "") {
+      // use Default:
+      encoding = this.charset;
+    }
+
+    if (encoding !== "UNICODE UTF-8") {
+      // Decoding needed:
+      messageString = decoder(messageBuffer, encoding);
+      data2 = new Message(messageString);
+      msgId = data2.getString("MSH-10");
+    }
+    this.logger(
+      `Message:\r\n${messageString.replace(/\r/g, "\n")}\r\n\r\n`
+    );
+
+    const event: IncomingMessageEvent = {
+      id: msgId,
+      ack: this.timeoutAck,
+      msg: messageString,
+      hl7: data2,
+      buffer: messageBuffer,
+    };
+
+    if (this.openEvents[msgId] === undefined) {
+      // Using a Timeout if no response has been sended within the timeout.
+      this.TIMEOUTS[msgId] = setTimeout(() => {
+        this.handleAck(event, "timeout");
+      }, this.TIMEOUT);
+
+      this.openEvents[msgId] = { sock, org: messageBuffer }; // save socket and Message for Response
+
+      /**
+       * MLLP HL7 Event. Fired when a HL7 Message is received.
+       * @event MLLPServer#hl7
+       * @type {string}
+       * @property {object} Event with the message string (msg), the Msg-ID, the default ACK and the parsed HL7 Object
+       */
+      this.emit("hl7", event);
+    } else {
+      // The Message ID is currently already in Progress... send a direkt REJECT-Message
+      const ackMsg = Message.createResponse(
+        event.hl7,
+        "AR",
+        "Message already in progress"
+      );
+      ackMsg.cleanup();
+      const ack = ackMsg.render();
+      sock.write(VT + ack + FS + CR);
+    }
+  };
 
   private updateState(): MLLPConnectionState {
     this.connectionEventState.connected = this.openConnections.length > 0;

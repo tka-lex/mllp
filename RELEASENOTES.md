@@ -22,3 +22,6 @@ This is the initial release of this library.
 # v2.1.2 - Juli 24 , 2023
 - switched to @sourceblock-ug/sb-sl7, Version 2.0.17; added cleanup on handleAck(); 
 - added default Response as Param to Constructor
+
+# v2.1.3 - Mar 28 , 2024
+- fixed a Bug with the Buffer handling on parallel Socket-Connections
