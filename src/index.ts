@@ -204,13 +204,8 @@ export class MLLPServer extends EventEmitter {
           message = Buffer.concat([message, data]);
 
           while (message.indexOf(FS + CR) > -1) {
-            let subBuffer = message.subarray(
-              0,
-              message.indexOf(FS + CR)
-            );
-            message = message.subarray(
-              message.indexOf(FS + CR) + 2
-            );
+            let subBuffer = message.subarray(0, message.indexOf(FS + CR));
+            message = message.subarray(message.indexOf(FS + CR) + 2);
             if (subBuffer.indexOf(VTi) > -1) {
               subBuffer = subBuffer.subarray(subBuffer.indexOf(VTi) + 1);
             }
@@ -219,10 +214,7 @@ export class MLLPServer extends EventEmitter {
 
           if (message.indexOf(VTi) > 0) {
             // got a new Message indicator - but there is something before that message - handle as (not proper closed) message:
-            const unwrappedBuffer = message.subarray(
-              0,
-              message.indexOf(VTi)
-            );
+            const unwrappedBuffer = message.subarray(0, message.indexOf(VTi));
             message = message.subarray(message.indexOf(VTi) + 1);
             this.handleIncomingMessage(unwrappedBuffer, sock);
           }
@@ -270,7 +262,7 @@ export class MLLPServer extends EventEmitter {
     }
   }
 
-  private handleIncomingMessage(messageBuffer: Buffer, sock: net.Socket){
+  private handleIncomingMessage(messageBuffer: Buffer, sock: net.Socket) {
     let messageString = messageBuffer.toString();
     let data2 = new Message(messageString);
     let msgId: string = data2.getString("MSH-10");
@@ -286,9 +278,11 @@ export class MLLPServer extends EventEmitter {
       data2 = new Message(messageString);
       msgId = data2.getString("MSH-10");
     }
-    this.logger(
-      `Message:\r\n${messageString.replace(/\r/g, "\n")}\r\n\r\n`
-    );
+    this.logger(`Message:\r\n${messageString.replace(/\r/g, "\n")}\r\n\r\n`);
+
+    if (msgId === "") {
+      msgId = Math.random().toString(36).substring(2);
+    }
 
     const event: IncomingMessageEvent = {
       id: msgId,
@@ -324,7 +318,7 @@ export class MLLPServer extends EventEmitter {
       const ack = ackMsg.render();
       sock.write(VT + ack + FS + CR);
     }
-  };
+  }
 
   private updateState(): MLLPConnectionState {
     this.connectionEventState.connected = this.openConnections.length > 0;
