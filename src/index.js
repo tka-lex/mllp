@@ -197,6 +197,9 @@ class MLLPServer extends events_1.default {
             msgId = data2.getString("MSH-10");
         }
         this.logger(`Message:\r\n${messageString.replace(/\r/g, "\n")}\r\n\r\n`);
+        if (msgId === "") {
+            msgId = Math.random().toString(36).substring(2);
+        }
         const event = {
             id: msgId,
             ack: this.timeoutAck,
@@ -226,7 +229,6 @@ class MLLPServer extends events_1.default {
             sock.write(VT + ack + FS + CR);
         }
     }
-    ;
     updateState() {
         this.connectionEventState.connected = this.openConnections.length > 0;
         let info = "";
@@ -292,6 +294,7 @@ class MLLPServer extends events_1.default {
                     ack = ackMsg.render();
                 }
                 inMsg.sock.write(VT + ack + FS + CR);
+                return true;
             }
             catch (e) {
                 this.logger(`Error sending response in mode ${mode}`, e);
@@ -300,18 +303,18 @@ class MLLPServer extends events_1.default {
         else {
             this.logger(`Response already send! Cannot process another response in mode ${mode}`, event);
         }
+        return false;
     }
     response(event) {
         if (this.openEvents[event.id] !== undefined) {
             const inMsg = this.openEvents[event.id];
-            this.handleAck(Object.assign({ hl7: new sb_sl7_1.Message(inMsg.org), msg: inMsg.org.toString(), buffer: inMsg.org }, event), "direct");
+            return this.handleAck(Object.assign({ hl7: new sb_sl7_1.Message(inMsg.org), msg: inMsg.org.toString(), buffer: inMsg.org }, event), "direct");
         }
-        else {
-            this.logger(`Response already send! Cannot process another response directly.`, event);
-        }
+        this.logger(`Response already send! Cannot process another response directly.`, event);
+        return false;
     }
     sendResponse(msgId, ack) {
-        this.response({ id: msgId, ack });
+        return this.response({ id: msgId, ack });
     }
     send(receivingHost, receivingPort, hl7Data, callback) {
         mllpSendMessage(receivingHost, receivingPort, hl7Data, callback, this.logger);

@@ -364,7 +364,7 @@ export class MLLPServer extends EventEmitter {
     return message.render();
   }
 
-  private handleAck(event: IncomingMessageEvent, mode: any): void {
+  private handleAck(event: IncomingMessageEvent, mode: any): boolean {
     if (this.openEvents[event.id] !== undefined) {
       const inMsg = this.openEvents[event.id];
       delete this.openEvents[event.id];
@@ -395,6 +395,7 @@ export class MLLPServer extends EventEmitter {
           ack = ackMsg.render();
         }
         inMsg.sock.write(VT + ack + FS + CR);
+        return true;
       } catch (e) {
         this.logger(`Error sending response in mode ${mode}`, e);
       }
@@ -404,12 +405,13 @@ export class MLLPServer extends EventEmitter {
         event
       );
     }
+    return false;
   }
 
-  public response(event: MessageResponseEvent) {
+  public response(event: MessageResponseEvent): boolean {
     if (this.openEvents[event.id] !== undefined) {
       const inMsg = this.openEvents[event.id];
-      this.handleAck(
+      return this.handleAck(
         {
           hl7: new Message(inMsg.org),
           msg: inMsg.org.toString(),
@@ -418,16 +420,16 @@ export class MLLPServer extends EventEmitter {
         },
         "direct"
       );
-    } else {
-      this.logger(
-        `Response already send! Cannot process another response directly.`,
-        event
-      );
     }
+    this.logger(
+      `Response already send! Cannot process another response directly.`,
+      event
+    );
+    return false;
   }
 
-  public sendResponse(msgId: string, ack: string) {
-    this.response({ id: msgId, ack });
+  public sendResponse(msgId: string, ack: string): boolean {
+    return this.response({ id: msgId, ack });
   }
 
   public send(

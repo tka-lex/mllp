@@ -70,8 +70,8 @@ export declare class MLLPServer extends EventEmitter {
     currentRemote(): string | null;
     static createResponseHeader(data: Message | string | object): string;
     private handleAck;
-    response(event: MessageResponseEvent): void;
-    sendResponse(msgId: string, ack: string): void;
+    response(event: MessageResponseEvent): boolean;
+    sendResponse(msgId: string, ack: string): boolean;
     send(receivingHost: string, receivingPort: number, hl7Data: Buffer | Renderable | string, callback: (err: Error | null, response: string | null) => void): void;
     close(done?: (err?: Error) => void): void;
     private static closeSocket;
