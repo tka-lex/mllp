@@ -38,7 +38,7 @@ server.on("hl7", (eventData) => {
     } else { */
   // you can  also send the incoming message to another Server and use the Response
   eventData.ack = "AE"; // set defaul to an Error
-  server.send("127.0.0.1", 22222, eventData.hl7, function (err, ackData) {
+  server.send("127.0.0.1", 22222, eventData.hl7, (err, ackData) => {
     // async callback code here
     console.log(eventData);
     eventData.ack = `${server.createResponseHeader(eventData.hl7)}\r${ackData}`;

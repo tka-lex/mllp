@@ -1,7 +1,12 @@
 import net from "net";
 import EventEmitter from "events";
 import { Message } from "@sourceblock-ug/sb-sl7";
-import decoder from "./decoder";
+import decoder from "./decoder/decoder";
+import { IncomingMessageEvent } from "./interfaces/IncomingMessageEvent";
+import { MLLPConnectionState } from "./interfaces/MLLPConnectionState";
+import { MessageResponseEvent } from "./interfaces/MessageResponseEvent";
+import { Renderable } from "./interfaces/Renderable";
+import { OpenSocket } from "./interfaces/OpenSocket";
 
 // The header is a vertical tab character <VT> its hex value is 0x0b.
 // The trailer is a field separator character <FS> (hex 0x1c) immediately followed by a carriage return <CR> (hex 0x0d)
@@ -11,8 +16,9 @@ const VTi = 0x0b;
 const FS = String.fromCharCode(0x1c); // const FSi = 0x1c;
 const CR = String.fromCharCode(0x0d); // const CRi = 0x0d;
 
-export interface Renderable {
-  render(): string | Buffer;
+function consoleLogger(msg: string): void {
+  // eslint-disable-next-line no-console
+  console.log(msg);
 }
 
 function isARenderable(obj: any): obj is Renderable {
@@ -35,10 +41,10 @@ export function mllpSendMessage(
   receivingPort: number,
   hl7Data: Buffer | Renderable | string,
   callback: (err: Error | null, response: string | null) => void,
-  logger?: (msg: string) => void
+  logger: (msg: string) => void = consoleLogger
 ) {
   // Render Message if it is an object:
-  const log = logger || console.log;
+  const log = logger;
   const payload: string | Buffer = getPayload(hl7Data);
 
   // Continue with Sending:
@@ -84,36 +90,13 @@ export function mllpSendMessage(
   });
 }
 
-export interface MessageResponseEvent {
-  id: string;
-  ack: string | Renderable | unknown;
-}
-
-export interface IncomingMessageEvent extends MessageResponseEvent {
-  msg: string;
-  hl7: Message;
-  buffer: Buffer;
-}
-
-export interface MLLPConnectionState {
-  host: string;
-  port: number;
-  connected: boolean;
-  remote: null | string;
-}
-
-interface OpenSocket {
-  sock: net.Socket;
-  org: Buffer;
-}
-
 // noinspection JSUnusedGlobalSymbols
 /**
  * @constructor MLLPServer
- * @param {string} host a resolvable hostname or IP Address
- * @param {number} port a valid free port for the server to listen on.
+ * @param {string} bindingAdress a resolvable hostname or IP Address
+ * @param {number} bindingPort a valid free port for the server to listen on.
  * @param defaultLogger
- * @param {number} timeout after which the answer is sended.
+ * @param {number} timeoutInMs after which the answer is sended.
  * @param {string} defaultCharset for Message decoding
  * @param {string} timeoutAck like AA or AE - default is AA
  *
@@ -134,115 +117,70 @@ interface OpenSocket {
  *
  */
 export class MLLPServer extends EventEmitter {
-  protected readonly HOST: string;
+  protected readonly bindingAddress: string = "127.0.0.1";
 
-  protected readonly PORT: number;
+  protected readonly bindingPort: number = 6969;
 
-  protected readonly TIMEOUT: number;
+  protected readonly timeoutInMs: number = 600;
 
-  protected logger: (msg: string, ...data: unknown[]) => void;
+  private readonly openTimeouts: Record<string, NodeJS.Timeout> = {};
+
+  private readonly openEvents: Record<string, OpenSocket> = {};
+
+  private readonly openConnections: net.Socket[] = [];
+
+  private readonly defaultAcknowledgment: string;
 
   protected charset: string;
-
-  private readonly TIMEOUTS: Record<string, NodeJS.Timeout>;
-
-  private readonly openEvents: Record<string, OpenSocket>;
 
   protected Server: net.Server;
 
   protected connectionEventState: MLLPConnectionState;
 
-  private readonly openConnections: net.Socket[] = [];
-
-  private readonly timeoutAck: string;
+  protected logger: (msg: string, ...data: unknown[]) => void;
 
   constructor(
     host: string,
     port: number,
-    defaultLogger?: (msg: string) => void,
-    timeout?: number,
-    defaultCharset?: string,
-    timeoutAck?: string
+    defaultLogger: (msg: string) => void = consoleLogger,
+    timeout: number = 600,
+    defaultCharset: string = "UNICODE UTF-8",
+    timeoutAck: string = ""
   ) {
     super();
-    this.HOST = host || "127.0.0.1";
-    this.PORT = port || 6969;
-    this.TIMEOUT = timeout || 600;
-    this.logger = defaultLogger || console.log;
-    this.TIMEOUTS = {};
+    this.bindingAddress = host;
+    this.bindingPort = port;
+    this.timeoutInMs = timeout;
+    this.logger = defaultLogger;
+    this.openTimeouts = {};
     this.openEvents = {};
-    this.timeoutAck =
+    this.defaultAcknowledgment =
       typeof timeoutAck === "string" && timeoutAck.length === 2
         ? timeoutAck.toUpperCase()
         : "AA";
-    this.charset =
-      defaultCharset !== undefined ? `${defaultCharset}` : "UNICODE UTF-8";
+    this.charset = `${defaultCharset}`;
     this.connectionEventState = {
-      host: this.HOST,
-      port: this.PORT,
+      host: this.bindingAddress,
+      port: this.bindingPort,
       connected: false,
       remote: null,
     };
 
     try {
-      this.Server = net.createServer((sock) => {
-        let message: Buffer = Buffer.from("", "binary");
-        this.logger(`CONNECTED: ${sock.remoteAddress}:${sock.remotePort}`);
-        this.addSocket(sock);
+      this.Server = this.createServer();
 
-        sock.on("end", () => {
-          // This should not happen, but if it does, tell everyone who is interested
-          this.emit("hl7-closed", this.updateState());
-          this.logger("server disconnected", this.HOST, this.PORT);
-          this.removeSocket(sock);
-        });
-
-        /*
-         * handling incoming Data. Currently only one message per Connection is supported.
-         */
-        sock.on("data", (data) => {
-          message = Buffer.concat([message, data]);
-
-          while (message.indexOf(FS + CR) > -1) {
-            let subBuffer = message.subarray(0, message.indexOf(FS + CR));
-            message = message.subarray(message.indexOf(FS + CR) + 2);
-            if (subBuffer.indexOf(VTi) > -1) {
-              subBuffer = subBuffer.subarray(subBuffer.indexOf(VTi) + 1);
-            }
-            this.handleIncomingMessage(subBuffer, sock);
-          }
-
-          if (message.indexOf(VTi) > 0) {
-            // got a new Message indicator - but there is something before that message - handle as (not proper closed) message:
-            const unwrappedBuffer = message.subarray(0, message.indexOf(VTi));
-            message = message.subarray(message.indexOf(VTi) + 1);
-            this.handleIncomingMessage(unwrappedBuffer, sock);
-          }
-        });
-
-        // emit incoming errors on the Sock to the outside world
-        sock.on("error", (err) => {
-          this.emit("hl7-error", err);
-        });
-
-        sock.on("close", () => {
-          this.logger(`CLOSED: ${sock.remoteAddress} ${sock.remotePort}`);
-          // Tell the outside world out connection state:
-          this.removeSocket(sock);
-          this.emit("hl7-disconnected", this.updateState());
-        });
-      });
-
-      if (this.HOST !== "0.0.0.0") {
-        this.Server.listen(this.PORT, this.HOST, () => {
-          this.logger(`Listen now to ${this.HOST}:${this.PORT}`);
+      if (this.bindingAddress !== "0.0.0.0") {
+        this.Server.listen(this.bindingPort, this.bindingAddress, () => {
+          this.logger(
+            `Listen now to ${this.bindingAddress}:${this.bindingPort}`
+          );
           setImmediate(() => {
             this.emit("hl7-ready", this.updateState());
           });
         });
       } else {
-        this.Server.listen(this.PORT, () => {
-          this.logger(`Listen now to [any]:${this.PORT}`);
+        this.Server.listen(this.bindingPort, () => {
+          this.logger(`Listen now to [any]:${this.bindingPort}`);
           setImmediate(() => {
             this.emit("hl7-ready", this.updateState());
           });
@@ -250,24 +188,102 @@ export class MLLPServer extends EventEmitter {
       }
 
       this.Server.on("close", () => {
-        this.emit("hl7-closed", { port: this.PORT, host: this.HOST });
+        this.emit("hl7-closed", {
+          port: this.bindingPort,
+          host: this.bindingAddress,
+        });
       });
 
       this.Server.on("error", (err) => {
         this.logger(`Error during MLLP Connection`, err);
       });
-    } catch (e) {
-      this.logger(`Error Listen to ${this.HOST}:${this.PORT}`, e);
-      throw new Error(`Error Listen to ${this.HOST}:${this.PORT}`);
+    } catch (err) {
+      this.logger(
+        `Error Listen to ${this.bindingAddress}:${this.bindingPort}`,
+        err
+      );
+      throw new Error(
+        `Error Listen to ${this.bindingAddress}:${this.bindingPort}`
+      );
     }
   }
 
-  private handleIncomingMessage(messageBuffer: Buffer, sock: net.Socket) {
-    let messageString = messageBuffer.toString();
-    let data2 = new Message(messageString);
-    let msgId: string = data2.getString("MSH-10");
-    let encoding = data2.getString("MSH-18");
-    if (encoding === undefined || encoding === null || encoding === "") {
+  private createServer(): net.Server {
+    return net.createServer((socket) => {
+      let messageBuffer: Buffer = Buffer.from("", "binary");
+      this.logger(`CONNECTED: ${socket.remoteAddress}:${socket.remotePort}`);
+      this.addSocket(socket);
+
+      socket.on("end", () => {
+        // This should not happen, but if it does, tell everyone who is interested
+        this.handleSocketOnEnd(socket);
+      });
+
+      /*
+       * handling incoming Data. Currently only one message per Connection is supported.
+       */
+      socket.on("data", (data: Buffer) => {
+        messageBuffer = Buffer.concat([messageBuffer, data]);
+        this.handleSocketOnData(socket, messageBuffer);
+      });
+
+      // emit incoming errors on the Sock to the outside world
+      socket.on("error", (err: Error) => {
+        this.emit("hl7-error", err);
+      });
+
+      socket.on("close", () => {
+        this.handleSocketOnClose(socket);
+      });
+    });
+  }
+
+  private handleSocketOnClose(socket: net.Socket): void {
+    this.logger(`CLOSED: ${socket.remoteAddress} ${socket.remotePort}`);
+    // Tell the outside world out connection state:
+    this.removeSocket(socket);
+    this.emit("hl7-disconnected", this.updateState());
+  }
+
+  private handleSocketOnEnd(socket: net.Socket) {
+    this.emit("hl7-closed", this.updateState());
+    this.logger("server disconnected", this.bindingAddress, this.bindingPort);
+    this.removeSocket(socket);
+  }
+
+  private handleSocketOnData(socket: net.Socket, _messageBuffer: Buffer): void {
+    // Reassign, so we are not overriding input parameter
+    let messageBuffer: Buffer = _messageBuffer;
+
+    while (messageBuffer.indexOf(FS + CR) > -1) {
+      const EOM_INDEX: number = messageBuffer.indexOf(FS + CR);
+      let subBuffer = messageBuffer.subarray(0, EOM_INDEX);
+      messageBuffer = messageBuffer.subarray(EOM_INDEX + 2);
+
+      if (subBuffer.indexOf(VTi) > -1) {
+        subBuffer = subBuffer.subarray(subBuffer.indexOf(VTi) + 1);
+      }
+      this.handleIncomingMessage(subBuffer, socket);
+    }
+
+    if (messageBuffer.indexOf(VTi) > 0) {
+      // got a new Message indicator - but there is something before that message - handle as (not proper closed) message:
+      const unwrappedBuffer = messageBuffer.subarray(
+        0,
+        messageBuffer.indexOf(VTi)
+      );
+      messageBuffer = messageBuffer.subarray(messageBuffer.indexOf(VTi) + 1);
+      this.handleIncomingMessage(unwrappedBuffer, socket);
+    }
+  }
+
+  private handleIncomingMessage(messageBuffer: Buffer, sock: net.Socket): void {
+    let messageString: string = messageBuffer.toString();
+    let hl7Message: Message = new Message(messageString);
+    let messageId: string = hl7Message.getString("MSH-10");
+    let encoding: string = hl7Message.getString("MSH-18");
+
+    if (encoding || encoding === null) {
       // use Default:
       encoding = this.charset;
     }
@@ -275,30 +291,30 @@ export class MLLPServer extends EventEmitter {
     if (encoding !== "UNICODE UTF-8") {
       // Decoding needed:
       messageString = decoder(messageBuffer, encoding);
-      data2 = new Message(messageString);
-      msgId = data2.getString("MSH-10");
+      hl7Message = new Message(messageString);
+      messageId = hl7Message.getString("MSH-10");
     }
     this.logger(`Message:\r\n${messageString.replace(/\r/g, "\n")}\r\n\r\n`);
 
-    if (msgId === "") {
-      msgId = Math.random().toString(36).substring(2);
+    if (messageId === "") {
+      messageId = Math.random().toString(36).substring(2);
     }
 
     const event: IncomingMessageEvent = {
-      id: msgId,
-      ack: this.timeoutAck,
+      id: messageId,
+      ack: this.defaultAcknowledgment,
       msg: messageString,
-      hl7: data2,
+      hl7: hl7Message,
       buffer: messageBuffer,
     };
 
-    if (this.openEvents[msgId] === undefined) {
-      // Using a Timeout if no response has been sended within the timeout.
-      this.TIMEOUTS[msgId] = setTimeout(() => {
+    if (this.openEvents[messageId] === undefined) {
+      // Using a Timeout if no response has been sent within the timeout.
+      this.openTimeouts[messageId] = setTimeout(() => {
         this.handleAck(event, "timeout");
-      }, this.TIMEOUT);
+      }, this.timeoutInMs);
 
-      this.openEvents[msgId] = { sock, org: messageBuffer }; // save socket and Message for Response
+      this.openEvents[messageId] = { sock, org: messageBuffer }; // save socket and Message for Response
 
       /**
        * MLLP HL7 Event. Fired when a HL7 Message is received.
@@ -323,14 +339,20 @@ export class MLLPServer extends EventEmitter {
   private updateState(): MLLPConnectionState {
     this.connectionEventState.connected = this.openConnections.length > 0;
     let info = "";
+
     for (let i = 0; i < this.openConnections.length; i += 1) {
-      const openConnection = this.openConnections[i];
-      info = `${info}${info.length > 0 ? ", " : ""}${
-        openConnection.remoteAddress
-      }:${openConnection.remotePort}`;
+      const openSocketConnection = this.openConnections[i];
+      info = this.createInfoString(info, openSocketConnection);
     }
+
     this.connectionEventState.remote = info;
     return this.connectionEventState;
+  }
+
+  private createInfoString(info: string, socketConnection: net.Socket): string {
+    return `${info}${info.length > 0 ? ", " : ""}${
+      socketConnection.remoteAddress
+    }:${socketConnection.remotePort}`;
   }
 
   private addSocket(sock: net.Socket): void {
@@ -346,8 +368,9 @@ export class MLLPServer extends EventEmitter {
     }
   }
 
+  // TODO: Are these getters?? They are not used anywhere. If these are getters, adjust name maybe?
   public port(): number {
-    return this.PORT;
+    return this.bindingPort;
   }
 
   public isConnected(): boolean {
@@ -370,9 +393,9 @@ export class MLLPServer extends EventEmitter {
       delete this.openEvents[event.id];
 
       // prevent Timeout:
-      if (this.TIMEOUTS[event.id] !== undefined) {
-        clearTimeout(this.TIMEOUTS[event.id]);
-        delete this.TIMEOUTS[event.id];
+      if (this.openTimeouts[event.id] !== undefined) {
+        clearTimeout(this.openTimeouts[event.id]);
+        delete this.openTimeouts[event.id];
       }
 
       try {
@@ -390,7 +413,10 @@ export class MLLPServer extends EventEmitter {
         } else if (typeof event.ack === "string") {
           ack = event.ack;
         } else {
-          const ackMsg = Message.createResponse(event.hl7, this.timeoutAck);
+          const ackMsg = Message.createResponse(
+            event.hl7,
+            this.defaultAcknowledgment
+          );
           ackMsg.cleanup();
           ack = ackMsg.render();
         }

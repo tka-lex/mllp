@@ -1,34 +1,20 @@
 /// <reference types="node" />
 /// <reference types="node" />
 /// <reference types="node" />
+/// <reference types="node" />
 import net from "net";
 import EventEmitter from "events";
 import { Message } from "@sourceblock-ug/sb-sl7";
-export interface Renderable {
-    render(): string | Buffer;
-}
+import { MLLPConnectionState } from "./interfaces/MLLPConnectionState";
+import { MessageResponseEvent } from "./interfaces/MessageResponseEvent";
+import { Renderable } from "./interfaces/Renderable";
 export declare function mllpSendMessage(receivingHost: string, receivingPort: number, hl7Data: Buffer | Renderable | string, callback: (err: Error | null, response: string | null) => void, logger?: (msg: string) => void): void;
-export interface MessageResponseEvent {
-    id: string;
-    ack: string | Renderable | unknown;
-}
-export interface IncomingMessageEvent extends MessageResponseEvent {
-    msg: string;
-    hl7: Message;
-    buffer: Buffer;
-}
-export interface MLLPConnectionState {
-    host: string;
-    port: number;
-    connected: boolean;
-    remote: null | string;
-}
 /**
  * @constructor MLLPServer
- * @param {string} host a resolvable hostname or IP Address
- * @param {number} port a valid free port for the server to listen on.
+ * @param {string} bindingAdress a resolvable hostname or IP Address
+ * @param {number} bindingPort a valid free port for the server to listen on.
  * @param defaultLogger
- * @param {number} timeout after which the answer is sended.
+ * @param {number} timeoutInMs after which the answer is sended.
  * @param {string} defaultCharset for Message decoding
  * @param {string} timeoutAck like AA or AE - default is AA
  *
@@ -49,20 +35,25 @@ export interface MLLPConnectionState {
  *
  */
 export declare class MLLPServer extends EventEmitter {
-    protected readonly HOST: string;
-    protected readonly PORT: number;
-    protected readonly TIMEOUT: number;
-    protected logger: (msg: string, ...data: unknown[]) => void;
-    protected charset: string;
-    private readonly TIMEOUTS;
+    protected readonly bindingAddress: string;
+    protected readonly bindingPort: number;
+    protected readonly timeoutInMs: number;
+    private readonly openTimeouts;
     private readonly openEvents;
+    private readonly openConnections;
+    private readonly defaultAcknowledgment;
+    protected charset: string;
     protected Server: net.Server;
     protected connectionEventState: MLLPConnectionState;
-    private readonly openConnections;
-    private readonly timeoutAck;
+    protected logger: (msg: string, ...data: unknown[]) => void;
     constructor(host: string, port: number, defaultLogger?: (msg: string) => void, timeout?: number, defaultCharset?: string, timeoutAck?: string);
+    private createServer;
+    private handleSocketOnClose;
+    private handleSocketOnEnd;
+    private handleSocketOnData;
     private handleIncomingMessage;
     private updateState;
+    private createInfoString;
     private addSocket;
     private removeSocket;
     port(): number;
