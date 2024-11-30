@@ -1,5 +1,14 @@
 # MLLP Release Notes
 
+# v3.0.0
+- Full ESM Module Support
+- TypeScript SourceMaps
+- 
+
+# v2.1.4
+- Encoding Support
+- MultiMessages per Connection
+
 # v1.0.0 - December 12, 2014
 
 This is the initial release of this library.
