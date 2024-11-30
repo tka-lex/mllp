@@ -14,8 +14,6 @@ Changes:
 - Supports bind to all Interfaces (0.0.0.0)
 - Using Package [sb-sl7](https://github.com/sourceblock-ug/sb-sl7) for Message parsing
 
-Sample (see example.js):
-
 ```javascript
 var mllp = require('mllp-node');
 var timeout = 600; // ms
@@ -66,8 +64,6 @@ grunt
 ```
 
 ## Usage
-
-See `example.js`:
 
 ```javascript
 var mllp = require('mllp-node');
