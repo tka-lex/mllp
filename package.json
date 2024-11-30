@@ -22,8 +22,10 @@
     "test:watch": "vitest --watch",
     "test:coverage": "vitest --coverage",
     "clean": "tsc --build --clean",
-    "lint": "npx eslint src --ext ts --ignore-pattern \"src/**/*.d.ts\"",
-    "lint:fix": "npm run lint -- --fix"
+    "lint": "eslint src --ext ts",
+    "lint:fix": "npm run lint -- --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "contributors": [
     {
