@@ -1,12 +1,12 @@
-import net from "net";
-import EventEmitter from "events";
-import { Message } from "@sourceblock-ug/sb-sl7";
-import decoder from "./decoder/decoder.js";
-import { IncomingMessageEvent } from "./interfaces/IncomingMessageEvent.js";
-import { MLLPConnectionState } from "./interfaces/MLLPConnectionState.js";
-import { MessageResponseEvent } from "./interfaces/MessageResponseEvent.js";
-import { Renderable } from "./interfaces/Renderable.js";
-import { OpenSocket } from "./interfaces/OpenSocket.js";
+import net from 'net';
+import EventEmitter from 'events';
+import { Message } from '@sourceblock-ug/sb-sl7';
+import decoder from './decoder/decoder.js';
+import type { IncomingMessageEvent } from './interfaces/IncomingMessageEvent.js';
+import type { MLLPConnectionState } from './interfaces/MLLPConnectionState.js';
+import type { MessageResponseEvent } from './interfaces/MessageResponseEvent.js';
+import type { Renderable } from './interfaces/Renderable.js';
+import type { OpenSocket } from './interfaces/OpenSocket.js';
 
 // The header is a vertical tab character <VT> its hex value is 0x0b.
 // The trailer is a field separator character <FS> (hex 0x1c) immediately followed by a carriage return <CR> (hex 0x0d)
@@ -17,20 +17,19 @@ const FS = String.fromCharCode(0x1c); // const FSi = 0x1c;
 const CR = String.fromCharCode(0x0d); // const CRi = 0x0d;
 
 function consoleLogger(msg: string): void {
-  // eslint-disable-next-line no-console
+   
   console.log(msg);
 }
 
-function isARenderable(obj: any): obj is Renderable {
+function isARenderable(obj: unknown): obj is Renderable {
   return (
-    typeof obj === "object" &&
-    Object.prototype.hasOwnProperty.call(obj, "render") &&
-    typeof obj.render === "function"
+    typeof obj === 'object' && obj !== null &&
+    "render" in obj  && typeof obj.render === 'function'
   );
 }
 
 function getPayload(hl7Data: Buffer | Renderable | string): string | Buffer {
-  if (typeof hl7Data === "object" && isARenderable(hl7Data)) {
+  if (typeof hl7Data === 'object' && isARenderable(hl7Data)) {
     return hl7Data.render();
   }
   return hl7Data;
@@ -41,7 +40,7 @@ export function mllpSendMessage(
   receivingPort: number,
   hl7Data: Buffer | Renderable | string,
   callback: (err: Error | null, response: string | null) => void,
-  logger: (msg: string) => void = consoleLogger
+  logger: (msg: string) => void = consoleLogger,
 ) {
   // Render Message if it is an object:
   const log = logger;
@@ -60,7 +59,7 @@ export function mllpSendMessage(
           sendingClient.write(FS + CR);
         });
       });
-    }
+    },
   );
 
   const terminate = () => {
@@ -68,21 +67,21 @@ export function mllpSendMessage(
     sendingClient.end();
   };
 
-  sendingClient.on("data", (rawAckData) => {
+  sendingClient.on('data', (rawAckData) => {
     log(`${receivingHost}:${receivingPort} ACKED data`);
 
     const ackData = rawAckData
       .toString() // Buffer -> String
-      .replace(VT, "")
-      .split("\r")[1] // Ack data
-      .replace(FS, "")
-      .replace(CR, "");
+      .replace(VT, '')
+      .split('\r')[1] // Ack data
+      .replace(FS, '')
+      .replace(CR, '');
 
     callback(null, ackData);
     terminate();
   });
 
-  sendingClient.on("error", (error) => {
+  sendingClient.on('error', (error) => {
     log(`${receivingHost}:${receivingPort} couldn't process data`);
 
     callback(error, null);
@@ -117,7 +116,7 @@ export function mllpSendMessage(
  *
  */
 export class MLLPServer extends EventEmitter {
-  protected readonly bindingAddress: string = "127.0.0.1";
+  protected readonly bindingAddress: string = '127.0.0.1';
 
   protected readonly bindingPort: number = 6969;
 
@@ -144,15 +143,15 @@ export class MLLPServer extends EventEmitter {
     port: number,
     defaultLogger: (msg: string) => void = consoleLogger,
     timeout: number = 600,
-    defaultCharset: string = "UNICODE UTF-8",
-    timeoutAck: string = ""
+    defaultCharset: string = 'UNICODE UTF-8',
+    timeoutAck: string = '',
   ) {
     super();
-    if (typeof host !== "string" || host === "") {
-      throw new Error("MLLPServer host must be a string");
+    if (typeof host !== 'string' || host === '') {
+      throw new Error('MLLPServer host must be a string');
     }
-    if (typeof port !== "number" || port <= 0) {
-      throw new Error("MLLPServer port must be a number > 0");
+    if (typeof port !== 'number' || port <= 0) {
+      throw new Error('MLLPServer port must be a number > 0');
     }
     this.bindingAddress = host;
     this.bindingPort = port;
@@ -161,9 +160,7 @@ export class MLLPServer extends EventEmitter {
     this.openTimeouts = {};
     this.openEvents = {};
     this.defaultAcknowledgment =
-      typeof timeoutAck === "string" && timeoutAck.length === 2
-        ? timeoutAck.toUpperCase()
-        : "AA";
+      typeof timeoutAck === 'string' && timeoutAck.length === 2 ? timeoutAck.toUpperCase() : 'AA';
     this.charset = `${defaultCharset}`;
     this.connectionEventState = {
       host: this.bindingAddress,
@@ -175,52 +172,45 @@ export class MLLPServer extends EventEmitter {
     try {
       this.Server = this.createServer();
 
-      if (this.bindingAddress !== "0.0.0.0") {
+      if (this.bindingAddress !== '0.0.0.0') {
         this.Server.listen(this.bindingPort, this.bindingAddress, () => {
-          this.logger(
-            `Listen now to ${this.bindingAddress}:${this.bindingPort}`
-          );
+          this.logger(`Listen now to ${this.bindingAddress}:${this.bindingPort}`);
           setImmediate(() => {
-            this.emit("hl7-ready", this.updateState());
+            this.emit('hl7-ready', this.updateState());
           });
         });
       } else {
         this.Server.listen(this.bindingPort, () => {
           this.logger(`Listen now to [any]:${this.bindingPort}`);
           setImmediate(() => {
-            this.emit("hl7-ready", this.updateState());
+            this.emit('hl7-ready', this.updateState());
           });
         });
       }
 
-      this.Server.on("close", () => {
-        this.emit("hl7-closed", {
+      this.Server.on('close', () => {
+        this.emit('hl7-closed', {
           port: this.bindingPort,
           host: this.bindingAddress,
         });
       });
 
-      this.Server.on("error", (err) => {
+      this.Server.on('error', (err) => {
         this.logger(`Error during MLLP Connection`, err);
       });
     } catch (err) {
-      this.logger(
-        `Error Listen to ${this.bindingAddress}:${this.bindingPort}`,
-        err
-      );
-      throw new Error(
-        `Error Listen to ${this.bindingAddress}:${this.bindingPort}`
-      );
+      this.logger(`Error Listen to ${this.bindingAddress}:${this.bindingPort}`, err);
+      throw new Error(`Error Listen to ${this.bindingAddress}:${this.bindingPort}`);
     }
   }
 
   private createServer(): net.Server {
     return net.createServer((socket) => {
-      let messageBuffer: Buffer = Buffer.from("", "binary");
+      let messageBuffer: Buffer = Buffer.from('', 'binary');
       this.logger(`CONNECTED: ${socket.remoteAddress}:${socket.remotePort}`);
       this.addSocket(socket);
 
-      socket.on("end", () => {
+      socket.on('end', () => {
         // This should not happen, but if it does, tell everyone who is interested
         this.handleSocketOnEnd(socket);
       });
@@ -228,17 +218,17 @@ export class MLLPServer extends EventEmitter {
       /*
        * handling incoming Data. Currently only one message per Connection is supported.
        */
-      socket.on("data", (data: Buffer) => {
+      socket.on('data', (data: Buffer) => {
         messageBuffer = Buffer.concat([messageBuffer, data]);
         this.handleSocketOnData(socket, messageBuffer);
       });
 
       // emit incoming errors on the Sock to the outside world
-      socket.on("error", (err: Error) => {
-        this.emit("hl7-error", err);
+      socket.on('error', (err: Error) => {
+        this.emit('hl7-error', err);
       });
 
-      socket.on("close", () => {
+      socket.on('close', () => {
         this.handleSocketOnClose(socket);
       });
     });
@@ -248,12 +238,12 @@ export class MLLPServer extends EventEmitter {
     this.logger(`CLOSED: ${socket.remoteAddress} ${socket.remotePort}`);
     // Tell the outside world out connection state:
     this.removeSocket(socket);
-    this.emit("hl7-disconnected", this.updateState());
+    this.emit('hl7-disconnected', this.updateState());
   }
 
   private handleSocketOnEnd(socket: net.Socket) {
-    this.emit("hl7-closed", this.updateState());
-    this.logger("server disconnected", this.bindingAddress, this.bindingPort);
+    this.emit('hl7-closed', this.updateState());
+    this.logger('server disconnected', this.bindingAddress, this.bindingPort);
     this.removeSocket(socket);
   }
 
@@ -274,10 +264,7 @@ export class MLLPServer extends EventEmitter {
 
     if (messageBuffer.indexOf(VTi) > 0) {
       // got a new Message indicator - but there is something before that message - handle as (not proper closed) message:
-      const unwrappedBuffer = messageBuffer.subarray(
-        0,
-        messageBuffer.indexOf(VTi)
-      );
+      const unwrappedBuffer = messageBuffer.subarray(0, messageBuffer.indexOf(VTi));
       messageBuffer = messageBuffer.subarray(messageBuffer.indexOf(VTi) + 1);
       this.handleIncomingMessage(unwrappedBuffer, socket);
     }
@@ -286,23 +273,23 @@ export class MLLPServer extends EventEmitter {
   private handleIncomingMessage(messageBuffer: Buffer, sock: net.Socket): void {
     let messageString: string = messageBuffer.toString();
     let hl7Message: Message = new Message(messageString);
-    let messageId: string = hl7Message.getString("MSH-10");
-    let encoding: string = hl7Message.getString("MSH-18");
+    let messageId: string = hl7Message.getString('MSH-10');
+    let encoding: string = hl7Message.getString('MSH-18');
 
     if (encoding || encoding === null) {
       // use Default:
       encoding = this.charset;
     }
 
-    if (encoding !== "UNICODE UTF-8") {
+    if (encoding !== 'UNICODE UTF-8') {
       // Decoding needed:
       messageString = decoder(messageBuffer, encoding);
       hl7Message = new Message(messageString);
-      messageId = hl7Message.getString("MSH-10");
+      messageId = hl7Message.getString('MSH-10');
     }
-    this.logger(`Message:\r\n${messageString.replace(/\r/g, "\n")}\r\n\r\n`);
+    this.logger(`Message:\r\n${messageString.replace(/\r/g, '\n')}\r\n\r\n`);
 
-    if (messageId === "") {
+    if (messageId === '') {
       messageId = Math.random().toString(36).substring(2);
     }
 
@@ -317,7 +304,7 @@ export class MLLPServer extends EventEmitter {
     if (this.openEvents[messageId] === undefined) {
       // Using a Timeout if no response has been sent within the timeout.
       this.openTimeouts[messageId] = setTimeout(() => {
-        this.handleAck(event, "timeout");
+        this.handleAck(event, 'timeout');
       }, this.timeoutInMs);
 
       this.openEvents[messageId] = { sock, org: messageBuffer }; // save socket and Message for Response
@@ -328,14 +315,10 @@ export class MLLPServer extends EventEmitter {
        * @type {string}
        * @property {object} Event with the message string (msg), the Msg-ID, the default ACK and the parsed HL7 Object
        */
-      this.emit("hl7", event);
+      this.emit('hl7', event);
     } else {
       // The Message ID is currently already in Progress... send a direkt REJECT-Message
-      const ackMsg = Message.createResponse(
-        event.hl7,
-        "AR",
-        "Message already in progress"
-      );
+      const ackMsg = Message.createResponse(event.hl7, 'AR', 'Message already in progress');
       ackMsg.cleanup();
       const ack = ackMsg.render();
       sock.write(VT + ack + FS + CR);
@@ -344,7 +327,7 @@ export class MLLPServer extends EventEmitter {
 
   private updateState(): MLLPConnectionState {
     this.connectionEventState.connected = this.openConnections.length > 0;
-    let info = "";
+    let info = '';
 
     for (let i = 0; i < this.openConnections.length; i += 1) {
       const openSocketConnection = this.openConnections[i];
@@ -356,21 +339,19 @@ export class MLLPServer extends EventEmitter {
   }
 
   private createInfoString(info: string, socketConnection: net.Socket): string {
-    return `${info}${info.length > 0 ? ", " : ""}${
-      socketConnection.remoteAddress
-    }:${socketConnection.remotePort}`;
+    return `${info}${info.length > 0 ? ', ' : ''}${socketConnection.remoteAddress}:${socketConnection.remotePort}`;
   }
 
   private addSocket(sock: net.Socket): void {
     this.openConnections.push(sock);
-    this.emit("hl7-connected", this.updateState());
+    this.emit('hl7-connected', this.updateState());
   }
 
   private removeSocket(sock: net.Socket): void {
     const idx = this.openConnections.indexOf(sock);
     if (idx >= 0) {
       this.openConnections.splice(idx, 1);
-      this.emit("hl7-state", this.updateState());
+      this.emit('hl7-state', this.updateState());
     }
   }
 
@@ -393,7 +374,7 @@ export class MLLPServer extends EventEmitter {
     return message.render();
   }
 
-  private handleAck(event: IncomingMessageEvent, mode: any): boolean {
+  private handleAck(event: IncomingMessageEvent, mode: "direct" | "timeout"): boolean {
     if (this.openEvents[event.id] !== undefined) {
       const inMsg = this.openEvents[event.id];
       delete this.openEvents[event.id];
@@ -408,34 +389,24 @@ export class MLLPServer extends EventEmitter {
         let ack;
         if (isARenderable(event.ack)) {
           ack = event.ack.render();
-        } else if (
-          typeof event.ack === "string" &&
-          event.ack.length === 2 &&
-          event.hl7
-        ) {
+        } else if (typeof event.ack === 'string' && event.ack.length === 2 && event.hl7) {
           const ackMsg = Message.createResponse(event.hl7, event.ack);
           ackMsg.cleanup();
           ack = ackMsg.render();
-        } else if (typeof event.ack === "string") {
+        } else if (typeof event.ack === 'string') {
           ack = event.ack;
         } else {
-          const ackMsg = Message.createResponse(
-            event.hl7,
-            this.defaultAcknowledgment
-          );
+          const ackMsg = Message.createResponse(event.hl7, this.defaultAcknowledgment);
           ackMsg.cleanup();
           ack = ackMsg.render();
         }
         inMsg.sock.write(VT + ack + FS + CR);
         return true;
       } catch (e) {
-        this.logger(`Error sending response in mode ${mode}`, e);
+        this.logger(`Error sending response in mode`, e);
       }
     } else {
-      this.logger(
-        `Response already send! Cannot process another response in mode ${mode}`,
-        event
-      );
+      this.logger(`Response already send! Cannot process another response in mode ${mode}`, event);
     }
     return false;
   }
@@ -450,13 +421,10 @@ export class MLLPServer extends EventEmitter {
           buffer: inMsg.org,
           ...event,
         },
-        "direct"
+        'direct',
       );
     }
-    this.logger(
-      `Response already send! Cannot process another response directly.`,
-      event
-    );
+    this.logger(`Response already send! Cannot process another response directly.`, event);
     return false;
   }
 
@@ -468,15 +436,9 @@ export class MLLPServer extends EventEmitter {
     receivingHost: string,
     receivingPort: number,
     hl7Data: Buffer | Renderable | string,
-    callback: (err: Error | null, response: string | null) => void
+    callback: (err: Error | null, response: string | null) => void,
   ) {
-    mllpSendMessage(
-      receivingHost,
-      receivingPort,
-      hl7Data,
-      callback,
-      this.logger
-    );
+    mllpSendMessage(receivingHost, receivingPort, hl7Data, callback, this.logger);
   }
 
   public close(done?: (err?: Error) => void) {

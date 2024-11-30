@@ -1,11 +1,13 @@
 # MLLP Release Notes
 
 # v3.0.0
+
 - Full ESM Module Support
 - TypeScript SourceMaps
-- 
+-
 
 # v2.1.4
+
 - Encoding Support
 - MultiMessages per Connection
 
@@ -25,12 +27,14 @@ This is the initial release of this library.
 # v2.1.1 - Juli 24 , 2023
 
 - added Socket-Termination on server.close()
-- Switched to eslint & prettier and Updated code accordingly 
+- Switched to eslint & prettier and Updated code accordingly
 - updated dependencies
 
 # v2.1.2 - Juli 24 , 2023
-- switched to @sourceblock-ug/sb-sl7, Version 2.0.17; added cleanup on handleAck(); 
+
+- switched to @sourceblock-ug/sb-sl7, Version 2.0.17; added cleanup on handleAck();
 - added default Response as Param to Constructor
 
 # v2.1.3 - Mar 28 , 2024
+
 - fixed a Bug with the Buffer handling on parallel Socket-Connections

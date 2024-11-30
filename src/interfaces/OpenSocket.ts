@@ -1,4 +1,4 @@
-import net from "net";
+import type net from 'net';
 
 export interface OpenSocket {
   sock: net.Socket;

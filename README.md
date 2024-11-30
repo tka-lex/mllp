@@ -1,36 +1,38 @@
-mllp
-====
+# mllp
+
 Fork, for original Readme see below!
 
 # Install:
+
 [![NPM](https://nodei.co/npm/mllp-node-sl7.png)](https://nodei.co/npm/mllp-node-sl7/)
 
 Changes:
+
 - Multi Message Support on a single Socket Connection
-- Basic Character Encoding Support 
+- Basic Character Encoding Support
 - Timeout with Auto-Response
 - Supports bind to all Interfaces (0.0.0.0)
-- Using Package [sb-sl7](https://github.com/sourceblock-ug/sb-sl7) for Message parsing 
+- Using Package [sb-sl7](https://github.com/sourceblock-ug/sb-sl7) for Message parsing
 
 Sample (see example.js):
+
 ```javascript
 var mllp = require('mllp-node');
 var timeout = 600; // ms
 var server = new mllp.MLLPServer('0.0.0.0', 1234, timeout);
 
 // Subscribe to inbound messages
-server.on('hl7', function (data){
-    console.log('received payload:', data);
+server.on('hl7', function (data) {
+  console.log('received payload:', data);
 });
 
 // Send outbound messages
 server.send('127.0.0.1', 4321, 'outbound-hl7-message', function (err, ackData) {
-    // async callback code here
+  // async callback code here
 });
 ```
 
 Original Readme:
-
 
 [![NPM](https://nodei.co/npm/mllp-node.png)](https://nodei.co/npm/mllp-node/)
 
@@ -39,16 +41,14 @@ Original Readme:
 
 HL7's MLLP (Minimum Lower Layer Protocol) server implementation in Node.js.
 
-
 Listen on predefined port for HL7 messages in format:
 
 ```
 <VT>[HL7 Message]<FS><CR>
 ```
 
-* [HL7 MLP minimul layer protocol defined](http://www.hl7standards.com/blog/2007/05/02/hl7-mlp-minimum-layer-protocol-defined/)
-* [ACK message](http://www.hl7standards.com/blog/2007/02/01/ack-message-original-mode-acknowledgement/)
-
+- [HL7 MLP minimul layer protocol defined](http://www.hl7standards.com/blog/2007/05/02/hl7-mlp-minimum-layer-protocol-defined/)
+- [ACK message](http://www.hl7standards.com/blog/2007/02/01/ack-message-original-mode-acknowledgement/)
 
 ## Quick up and running guide
 
@@ -75,13 +75,13 @@ var mllp = require('mllp-node');
 var server = new mllp.MLLPServer('127.0.0.1', 1234);
 
 // Subscribe to inbound messages
-server.on('hl7', function (data){
-    console.log('received payload:', data);
+server.on('hl7', function (data) {
+  console.log('received payload:', data);
 });
 
 // Send outbound messages
 server.send('127.0.0.1', 4321, 'outbound-hl7-message', function (err, ackData) {
-    // async callback code here
+  // async callback code here
 });
 ```
 

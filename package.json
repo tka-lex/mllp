@@ -22,8 +22,8 @@
     "test:watch": "vitest --watch",
     "test:coverage": "vitest --coverage",
     "clean": "tsc --build --clean",
-    "lint": "eslint src --ext ts",
-    "lint:fix": "npm run lint -- --fix",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },

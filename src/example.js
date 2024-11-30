@@ -1,12 +1,12 @@
-/* eslint-disable no-param-reassign,no-console */
-import { MLLPServer } from "./index";
+ 
+import { MLLPServer } from './index';
 
 const timeout = 600; // ms
-const server = new MLLPServer("127.0.0.1", 1234, console.log, timeout);
+const server = new MLLPServer('127.0.0.1', 1234, console.log, timeout);
 
 // Subscribe to inbound messages
-server.on("hl7", (eventData) => {
-  console.debug("received payload: ", eventData.msg);
+server.on('hl7', (eventData) => {
+  console.debug('received payload: ', eventData.msg);
 
   /*
    * You can send a Response back to the Server by using server.response(eventData).
@@ -37,8 +37,8 @@ server.on("hl7", (eventData) => {
         // or skip both to let the timeout handle this for you.
     } else { */
   // you can  also send the incoming message to another Server and use the Response
-  eventData.ack = "AE"; // set defaul to an Error
-  server.send("127.0.0.1", 22222, eventData.hl7, (err, ackData) => {
+  eventData.ack = 'AE'; // set defaul to an Error
+  server.send('127.0.0.1', 22222, eventData.hl7, (err, ackData) => {
     // async callback code here
     console.log(eventData);
     eventData.ack = `${server.createResponseHeader(eventData.hl7)}\r${ackData}`;
@@ -48,7 +48,7 @@ server.on("hl7", (eventData) => {
 });
 
 // Send outbound messages
-server.send("127.0.0.1", 22222, "outbound-hl7-message", (err, ackData) => {
+server.send('127.0.0.1', 22222, 'outbound-hl7-message', (err, ackData) => {
   // async callback code here
   console.log(err, ackData);
 });
