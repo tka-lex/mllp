@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json", // Extend your base tsconfig
+  "compilerOptions": {
+    "strict": true,
+    "rootDirs": ["./src", "./tests"],
+    "types": ["vitest/globals"],
+  },
+  "include": ["src", "tests"],
+  "exclude": ["node_modules", "dist"]
+}

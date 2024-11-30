@@ -12,7 +12,7 @@ export default [
       parserOptions: {
         ecmaVersion: 'latest', // Support modern syntax
         sourceType: 'module', // ESM modules
-        project: './tsconfig.json', // Point to your TypeScript config
+        project: './tsconfig.test.json', // Point to your TypeScript config
       },
     },
     plugins: {
