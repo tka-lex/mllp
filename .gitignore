@@ -18,5 +18,5 @@ npm-debug.log
 
 .anvil
 .idea/
-package-lock.json
 yarn.lock
+dist
