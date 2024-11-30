@@ -1,7 +1,7 @@
 import { describe, it, beforeAll, beforeEach, expect } from 'vitest';
 import fs from 'fs';
+import type { IncomingMessageEvent } from '../src/index.js';
 import { MLLPServer } from '../src/index.js';
-import type { IncomingMessageEvent } from '../src/interfaces/IncomingMessageEvent.js';
 
 describe('Test server with client data exchange', () => {
   let hl7 = '';

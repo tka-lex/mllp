@@ -1,4 +1,4 @@
-import type { Renderable } from './Renderable.js';
+import type { Renderable } from '../content/renderable.interface.js';
 
 export interface MessageResponseEvent {
   id: string;
