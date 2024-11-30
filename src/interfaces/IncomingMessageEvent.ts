@@ -1,5 +1,5 @@
 import { Message } from "@sourceblock-ug/sb-sl7";
-import { MessageResponseEvent } from "./MessageResponseEvent";
+import { MessageResponseEvent } from "./MessageResponseEvent.js";
 
 export interface IncomingMessageEvent extends MessageResponseEvent {
   msg: string;

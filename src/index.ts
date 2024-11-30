@@ -1,12 +1,12 @@
 import net from "net";
 import EventEmitter from "events";
 import { Message } from "@sourceblock-ug/sb-sl7";
-import decoder from "./decoder/decoder";
-import { IncomingMessageEvent } from "./interfaces/IncomingMessageEvent";
-import { MLLPConnectionState } from "./interfaces/MLLPConnectionState";
-import { MessageResponseEvent } from "./interfaces/MessageResponseEvent";
-import { Renderable } from "./interfaces/Renderable";
-import { OpenSocket } from "./interfaces/OpenSocket";
+import decoder from "./decoder/decoder.js";
+import { IncomingMessageEvent } from "./interfaces/IncomingMessageEvent.js";
+import { MLLPConnectionState } from "./interfaces/MLLPConnectionState.js";
+import { MessageResponseEvent } from "./interfaces/MessageResponseEvent.js";
+import { Renderable } from "./interfaces/Renderable.js";
+import { OpenSocket } from "./interfaces/OpenSocket.js";
 
 // The header is a vertical tab character <VT> its hex value is 0x0b.
 // The trailer is a field separator character <FS> (hex 0x1c) immediately followed by a carriage return <CR> (hex 0x0d)
@@ -148,6 +148,12 @@ export class MLLPServer extends EventEmitter {
     timeoutAck: string = ""
   ) {
     super();
+    if (typeof host !== "string" || host === "") {
+      throw new Error("MLLPServer host must be a string");
+    }
+    if (typeof port !== "number" || port <= 0) {
+      throw new Error("MLLPServer port must be a number > 0");
+    }
     this.bindingAddress = host;
     this.bindingPort = port;
     this.timeoutInMs = timeout;
