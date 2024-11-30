@@ -8,7 +8,9 @@ describe('Test server with client data exchange', () => {
   let server: MLLPServer;
 
   beforeAll(() => {
-    hl7 = fs.readFileSync('./tests/fixtures/test.txt', 'utf-8').replace(/\n/g, '\r');
+    hl7 = fs
+      .readFileSync('./tests/fixtures/test.txt', 'utf-8')
+      .replace(/\n/g, '\r');
     server = new MLLPServer('127.0.0.1', 1234);
   });
 
@@ -60,14 +62,22 @@ describe('Test server with client data exchange', () => {
   describe('Not passing in specific host and port', () => {
     it('should throw an Error', async () => {
       // @ts-ignore
-      expect(() => new MLLPServer()).toThrowError('MLLPServer host must be a string');
+      expect(() => new MLLPServer()).toThrowError(
+        'MLLPServer host must be a string',
+      );
       // @ts-ignore
-      expect(() => new MLLPServer('')).toThrowError('MLLPServer host must be a string');
+      expect(() => new MLLPServer('')).toThrowError(
+        'MLLPServer host must be a string',
+      );
     });
     it('should throw an Error', async () => {
       // @ts-ignore
-      expect(() => new MLLPServer('0.0.0.0')).toThrowError('MLLPServer port must be a number > 0');
-      expect(() => new MLLPServer('0.0.0.0', 0)).toThrowError('MLLPServer port must be a number > 0');
+      expect(() => new MLLPServer('0.0.0.0')).toThrowError(
+        'MLLPServer port must be a number > 0',
+      );
+      expect(() => new MLLPServer('0.0.0.0', 0)).toThrowError(
+        'MLLPServer port must be a number > 0',
+      );
     });
   });
 });
@@ -77,7 +87,9 @@ describe('Sends a large message for data exchange', () => {
   let server: MLLPServer;
 
   beforeAll(() => {
-    hl7Message = fs.readFileSync('./tests/fixtures/LargeA08.txt', 'utf-8').replace(/\n/g, '\r');
+    hl7Message = fs
+      .readFileSync('./tests/fixtures/LargeA08.txt', 'utf-8')
+      .replace(/\n/g, '\r');
     server = new MLLPServer('127.0.0.1', 1235);
   });
 

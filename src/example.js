@@ -1,4 +1,3 @@
- 
 import { MLLPServer } from './index';
 
 const timeout = 600; // ms

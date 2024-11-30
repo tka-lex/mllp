@@ -17,14 +17,15 @@ const FS = String.fromCharCode(0x1c); // const FSi = 0x1c;
 const CR = String.fromCharCode(0x0d); // const CRi = 0x0d;
 
 function consoleLogger(msg: string): void {
-   
   console.log(msg);
 }
 
 function isARenderable(obj: unknown): obj is Renderable {
   return (
-    typeof obj === 'object' && obj !== null &&
-    "render" in obj  && typeof obj.render === 'function'
+    typeof obj === 'object' &&
+    obj !== null &&
+    'render' in obj &&
+    typeof obj.render === 'function'
   );
 }
 
@@ -160,7 +161,9 @@ export class MLLPServer extends EventEmitter {
     this.openTimeouts = {};
     this.openEvents = {};
     this.defaultAcknowledgment =
-      typeof timeoutAck === 'string' && timeoutAck.length === 2 ? timeoutAck.toUpperCase() : 'AA';
+      typeof timeoutAck === 'string' && timeoutAck.length === 2
+        ? timeoutAck.toUpperCase()
+        : 'AA';
     this.charset = `${defaultCharset}`;
     this.connectionEventState = {
       host: this.bindingAddress,
@@ -174,7 +177,9 @@ export class MLLPServer extends EventEmitter {
 
       if (this.bindingAddress !== '0.0.0.0') {
         this.Server.listen(this.bindingPort, this.bindingAddress, () => {
-          this.logger(`Listen now to ${this.bindingAddress}:${this.bindingPort}`);
+          this.logger(
+            `Listen now to ${this.bindingAddress}:${this.bindingPort}`,
+          );
           setImmediate(() => {
             this.emit('hl7-ready', this.updateState());
           });
@@ -199,8 +204,13 @@ export class MLLPServer extends EventEmitter {
         this.logger(`Error during MLLP Connection`, err);
       });
     } catch (err) {
-      this.logger(`Error Listen to ${this.bindingAddress}:${this.bindingPort}`, err);
-      throw new Error(`Error Listen to ${this.bindingAddress}:${this.bindingPort}`);
+      this.logger(
+        `Error Listen to ${this.bindingAddress}:${this.bindingPort}`,
+        err,
+      );
+      throw new Error(
+        `Error Listen to ${this.bindingAddress}:${this.bindingPort}`,
+      );
     }
   }
 
@@ -220,7 +230,7 @@ export class MLLPServer extends EventEmitter {
        */
       socket.on('data', (data: Buffer) => {
         messageBuffer = Buffer.concat([messageBuffer, data]);
-        this.handleSocketOnData(socket, messageBuffer);
+        messageBuffer = this.handleSocketOnData(socket, messageBuffer);
       });
 
       // emit incoming errors on the Sock to the outside world
@@ -247,7 +257,7 @@ export class MLLPServer extends EventEmitter {
     this.removeSocket(socket);
   }
 
-  private handleSocketOnData(socket: net.Socket, _messageBuffer: Buffer): void {
+  private handleSocketOnData(socket: net.Socket, _messageBuffer: Buffer): Buffer {
     // Reassign, so we are not overriding input parameter
     let messageBuffer: Buffer = _messageBuffer;
 
@@ -264,10 +274,14 @@ export class MLLPServer extends EventEmitter {
 
     if (messageBuffer.indexOf(VTi) > 0) {
       // got a new Message indicator - but there is something before that message - handle as (not proper closed) message:
-      const unwrappedBuffer = messageBuffer.subarray(0, messageBuffer.indexOf(VTi));
+      const unwrappedBuffer = messageBuffer.subarray(
+        0,
+        messageBuffer.indexOf(VTi),
+      );
       messageBuffer = messageBuffer.subarray(messageBuffer.indexOf(VTi) + 1);
       this.handleIncomingMessage(unwrappedBuffer, socket);
     }
+    return messageBuffer;
   }
 
   private handleIncomingMessage(messageBuffer: Buffer, sock: net.Socket): void {
@@ -318,7 +332,11 @@ export class MLLPServer extends EventEmitter {
       this.emit('hl7', event);
     } else {
       // The Message ID is currently already in Progress... send a direkt REJECT-Message
-      const ackMsg = Message.createResponse(event.hl7, 'AR', 'Message already in progress');
+      const ackMsg = Message.createResponse(
+        event.hl7,
+        'AR',
+        'Message already in progress',
+      );
       ackMsg.cleanup();
       const ack = ackMsg.render();
       sock.write(VT + ack + FS + CR);
@@ -374,7 +392,10 @@ export class MLLPServer extends EventEmitter {
     return message.render();
   }
 
-  private handleAck(event: IncomingMessageEvent, mode: "direct" | "timeout"): boolean {
+  private handleAck(
+    event: IncomingMessageEvent,
+    mode: 'direct' | 'timeout',
+  ): boolean {
     if (this.openEvents[event.id] !== undefined) {
       const inMsg = this.openEvents[event.id];
       delete this.openEvents[event.id];
@@ -389,14 +410,21 @@ export class MLLPServer extends EventEmitter {
         let ack;
         if (isARenderable(event.ack)) {
           ack = event.ack.render();
-        } else if (typeof event.ack === 'string' && event.ack.length === 2 && event.hl7) {
+        } else if (
+          typeof event.ack === 'string' &&
+          event.ack.length === 2 &&
+          event.hl7
+        ) {
           const ackMsg = Message.createResponse(event.hl7, event.ack);
           ackMsg.cleanup();
           ack = ackMsg.render();
         } else if (typeof event.ack === 'string') {
           ack = event.ack;
         } else {
-          const ackMsg = Message.createResponse(event.hl7, this.defaultAcknowledgment);
+          const ackMsg = Message.createResponse(
+            event.hl7,
+            this.defaultAcknowledgment,
+          );
           ackMsg.cleanup();
           ack = ackMsg.render();
         }
@@ -406,7 +434,10 @@ export class MLLPServer extends EventEmitter {
         this.logger(`Error sending response in mode`, e);
       }
     } else {
-      this.logger(`Response already send! Cannot process another response in mode ${mode}`, event);
+      this.logger(
+        `Response already send! Cannot process another response in mode ${mode}`,
+        event,
+      );
     }
     return false;
   }
@@ -424,7 +455,10 @@ export class MLLPServer extends EventEmitter {
         'direct',
       );
     }
-    this.logger(`Response already send! Cannot process another response directly.`, event);
+    this.logger(
+      `Response already send! Cannot process another response directly.`,
+      event,
+    );
     return false;
   }
 
@@ -438,7 +472,13 @@ export class MLLPServer extends EventEmitter {
     hl7Data: Buffer | Renderable | string,
     callback: (err: Error | null, response: string | null) => void,
   ) {
-    mllpSendMessage(receivingHost, receivingPort, hl7Data, callback, this.logger);
+    mllpSendMessage(
+      receivingHost,
+      receivingPort,
+      hl7Data,
+      callback,
+      this.logger,
+    );
   }
 
   public close(done?: (err?: Error) => void) {

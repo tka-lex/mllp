@@ -12,7 +12,6 @@ function decode(msgBuffer: Buffer, hl7Encoding: string): string {
       return iconv.decode(msgBuffer, 'ascii');
     }
   } catch (e) {
-     
     console.error('Error during decode: ', e);
   }
   return msgBuffer.toString(); // Fallback if encoding is not supported.
