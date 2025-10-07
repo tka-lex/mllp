@@ -34,7 +34,11 @@ export function mllpSendMessage(
   receivingHost: string,
   receivingPort: number,
   hl7Data: Buffer | Renderable | string,
-  callback: (err: Error | null, response: string | null) => void,
+  callback: (
+    err: Error | null,
+    response: string | null,
+    responseMessage: string | null
+  ) => void,
   logger?: (msg: string) => void
 ) {
   // Render Message if it is an object:
@@ -62,24 +66,24 @@ export function mllpSendMessage(
     sendingClient.end();
   };
 
+  const cleanup = (msg: string): string => {
+    return msg.replace(VT, "").replace(FS, "").replace(CR, "");
+  };
+
   sendingClient.on("data", (rawAckData) => {
     log(`${receivingHost}:${receivingPort} ACKED data`);
 
-    const ackData = rawAckData
-      .toString() // Buffer -> String
-      .replace(VT, "")
-      .split("\r")[1] // Ack data
-      .replace(FS, "")
-      .replace(CR, "");
+    const responseMessage = rawAckData.toString().replace(VT, "");
+    const ackData = responseMessage.split("\r")[1]; // Ack data
 
-    callback(null, ackData);
+    callback(null, cleanup(ackData), cleanup(responseMessage));
     terminate();
   });
 
   sendingClient.on("error", (error) => {
     log(`${receivingHost}:${receivingPort} couldn't process data`);
 
-    callback(error, null);
+    callback(error, null, null);
     terminate();
   });
 }
