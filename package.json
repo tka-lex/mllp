@@ -1,6 +1,6 @@
 {
   "name": "mllp-node-sl7",
-  "version": "2.1.4",
+  "version": "2.1.5",
   "description": "MLLP (HL7) implementation in Node.js",
   "main": "src/index.js",
   "types": "src/index.ts",
