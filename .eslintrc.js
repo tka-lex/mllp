@@ -12,6 +12,7 @@ module.exports = {
   ],
   plugins: ["jsx-a11y", "import", "prettier", "@typescript-eslint"],
   globals: {},
+  ignorePatterns: ["coverage", "dist", "node_modules", "test"],
   rules: {
     // prettier
     "prettier/prettier": ["error"],
