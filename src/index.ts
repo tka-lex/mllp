@@ -9,7 +9,7 @@ import decoder from "./decoder";
 const VT = String.fromCharCode(0x0b);
 const VTi = 0x0b;
 const FS = String.fromCharCode(0x1c); // const FSi = 0x1c;
-const CR = String.fromCharCode(0x0d); // const CRi = 0x0d;
+const CR = String.fromCharCode(0x0d); // const CRi = 0x0d; > \r
 
 export interface Renderable {
   render(): string | Buffer;
@@ -29,6 +29,16 @@ function getPayload(hl7Data: Buffer | Renderable | string): string | Buffer {
   }
   return hl7Data;
 }
+
+export const cleanupString= (msg: string, removeParts: string[]): string => {
+  return removeParts.reduce((acc, part) => {
+    return acc.replace(part, "");
+  }, msg);
+};
+
+export const cleanup = (msg: string): string => {
+  return cleanupString(msg, [VT, FS + CR, FS]);
+};
 
 export function mllpSendMessage(
   receivingHost: string,
@@ -64,10 +74,6 @@ export function mllpSendMessage(
   const terminate = () => {
     log(`closing connection with ${receivingHost}:${receivingPort}`);
     sendingClient.end();
-  };
-
-  const cleanup = (msg: string): string => {
-    return msg.replace(VT, "").replace(FS, "").replace(CR, "");
   };
 
   sendingClient.on("data", (rawAckData) => {

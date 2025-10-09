@@ -7,6 +7,8 @@ import { Message } from "@sourceblock-ug/sb-sl7";
 export interface Renderable {
     render(): string | Buffer;
 }
+export declare const cleanupString: (msg: string, removeParts: string[]) => string;
+export declare const cleanup: (msg: string) => string;
 export declare function mllpSendMessage(receivingHost: string, receivingPort: number, hl7Data: Buffer | Renderable | string, callback: (err: Error | null, response: string | null, responseMessage: string | null) => void, logger?: (msg: string) => void): void;
 export interface MessageResponseEvent {
     id: string;

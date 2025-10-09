@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.MLLPServer = exports.mllpSendMessage = void 0;
+exports.MLLPServer = exports.mllpSendMessage = exports.cleanup = exports.cleanupString = void 0;
 const net_1 = __importDefault(require("net"));
 const events_1 = __importDefault(require("events"));
 const sb_sl7_1 = require("@sourceblock-ug/sb-sl7");
@@ -13,7 +13,7 @@ const decoder_1 = __importDefault(require("./decoder"));
 const VT = String.fromCharCode(0x0b);
 const VTi = 0x0b;
 const FS = String.fromCharCode(0x1c); // const FSi = 0x1c;
-const CR = String.fromCharCode(0x0d); // const CRi = 0x0d;
+const CR = String.fromCharCode(0x0d); // const CRi = 0x0d; > \r
 function isARenderable(obj) {
     return (typeof obj === "object" &&
         Object.prototype.hasOwnProperty.call(obj, "render") &&
@@ -25,6 +25,16 @@ function getPayload(hl7Data) {
     }
     return hl7Data;
 }
+const cleanupString = (msg, removeParts) => {
+    return removeParts.reduce((acc, part) => {
+        return acc.replace(part, "");
+    }, msg);
+};
+exports.cleanupString = cleanupString;
+const cleanup = (msg) => {
+    return (0, exports.cleanupString)(msg, [VT, FS + CR, FS]);
+};
+exports.cleanup = cleanup;
 function mllpSendMessage(receivingHost, receivingPort, hl7Data, callback, logger) {
     // Render Message if it is an object:
     const log = logger || console.log;
@@ -45,17 +55,14 @@ function mllpSendMessage(receivingHost, receivingPort, hl7Data, callback, logger
         log(`closing connection with ${receivingHost}:${receivingPort}`);
         sendingClient.end();
     };
-    const cleanup = (msg) => {
-        return msg.replace(VT, '').replace(FS, '').replace(CR, '');
-    };
-    sendingClient.on('data', (rawAckData) => {
+    sendingClient.on("data", (rawAckData) => {
         log(`${receivingHost}:${receivingPort} ACKED data`);
-        const responseMessage = rawAckData.toString().replace(VT, '');
-        const ackData = responseMessage.split('\r')[1]; // Ack data
-        callback(null, cleanup(ackData), cleanup(responseMessage));
+        const responseMessage = rawAckData.toString().replace(VT, "");
+        const ackData = responseMessage.split("\r")[1]; // Ack data
+        callback(null, (0, exports.cleanup)(ackData), (0, exports.cleanup)(responseMessage));
         terminate();
     });
-    sendingClient.on('error', (error) => {
+    sendingClient.on("error", (error) => {
         log(`${receivingHost}:${receivingPort} couldn't process data`);
         callback(error, null, null);
         terminate();

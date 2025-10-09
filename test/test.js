@@ -109,4 +109,16 @@ describe("sends a large message for data exchange", function () {
             });
         });
     });
+
+    describe("cleanup test", function () {
+        const sample = "MSH|^~\\&|RECEIVER|RECEIVING_FACILITY|SENDER|SENDING_FACILITY|20251009140009||ACK|202510091400090.335188|P|2.5||||||\r" +
+            "MSA|AA|MSG-OK-1|Test ACK\r" +
+            "\r";
+
+        it("should not remove necessary parts", function () {
+            const clean = mllp.cleanup(sample);
+            assert.equal(clean,  "MSH|^~\\&|RECEIVER|RECEIVING_FACILITY|SENDER|SENDING_FACILITY|20251009140009||ACK|202510091400090.335188|P|2.5||||||\r" +
+                "MSA|AA|MSG-OK-1|Test ACK\r");
+        })
+    });
 });
